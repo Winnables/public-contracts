@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.24;
+
+import "./libraries/Bits.sol";
+
+contract BaseCCIPContract {
+    using Bits for bytes32;
+
+    error InvalidRouter(address router);
+    error UnauthorizedCCIPSender();
+    error InvalidCCIPMessage();
+
+    address internal immutable CCIP_ROUTER;
+
+    /// @dev Linked CCIP contracts
+    /// The mapping key is a packed bytes32 with the following bit mapping
+    /// [0..159]    address sourceContract
+    /// [160..223]  uint64  sourceChainSelector
+    mapping(bytes32 => bool) internal _ccipContracts;
+
+    constructor(address router) {
+        CCIP_ROUTER = router;
+    }
+
+    /// @notice Return the current router
+    /// @return Current CCIP Router address
+    function getCCIPRouter() external view returns (address) {
+        return CCIP_ROUTER;
+    }
+
+    /// @notice Manage approved counterpart CCIP contracts
+    /// @param contractAddress Address of counterpart contract on the remote chain
+    /// @param chainSelector CCIP Chain selector of the remote chain
+    /// @param enabled Boolean representing whether this counterpart should be allowed or denied
+    function setCCIPCounterpart(
+        address contractAddress,
+        uint64 chainSelector,
+        bool enabled
+    ) external virtual {}
+
+    function _packCCIPContract(address contractAddress, uint64 chainSelector) internal pure returns(bytes32) {
+        return bytes32(0)
+            .setAddress(0, contractAddress)
+            .setUint64(160, chainSelector);
+    }
+
+    function _unpackCCIPContract(bytes32 pack) internal pure returns(address contractAddress, uint64 chainSelector) {
+        contractAddress = pack.getAddress(0);
+        chainSelector = pack.getUint64(160);
+    }
+}
