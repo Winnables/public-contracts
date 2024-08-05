@@ -329,7 +329,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
 
     function _cancelRaffle(uint256 raffleId) internal {
         RaffleType raffleType = _rafflePrize[raffleId].raffleType;
-        if (raffleType == RaffleType.NONE) {
+        if (raffleType == RaffleType.NONE || _rafflePrize[raffleId].status == RafflePrizeStatus.CANCELED) {
             revert InvalidRaffle();
         } else if (raffleType == RaffleType.NFT) {
             NFTInfo storage nftInfo = _nftRaffles[raffleId];
@@ -340,7 +340,6 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         } else if (raffleType == RaffleType.ETH) {
             unchecked { _ethLocked -= _ethRaffles[raffleId]; }
         }
-        _rafflePrize[raffleId].raffleType = RaffleType.NONE;
         _rafflePrize[raffleId].status = RafflePrizeStatus.CANCELED;
         emit PrizeUnlocked(raffleId);
     }
