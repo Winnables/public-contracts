@@ -224,7 +224,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
       uint256 startId = _supplies[id];
       unchecked {
         _balances[id][to] += amount;
-        _supplies[id] += amount;
+        _supplies[id] = startId + amount;
         _ticketOwnership[id][startId] = to;
         ++i;
       }

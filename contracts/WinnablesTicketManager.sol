@@ -127,15 +127,29 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         raffleId = request.raffleId;
     }
 
+    /// @notice (Public) Check if a raffle should draw a winner
+    /// @param raffleId Raffle ID
+    /// @return true if the winner should be drawn, false otherwise
     function shouldDrawRaffle(uint256 raffleId) external view returns(bool) {
         _checkShouldDraw(raffleId);
         return true;
     }
 
+    /// @notice (Public) Check if a raffle should be canceled
+    /// @param raffleId Raffle ID
+    /// @return true if the raffle should be canceled, false otherwise
     function shouldCancelRafflle(uint256 raffleId) external view returns(bool) {
         _checkShouldCancel(raffleId);
         return true;
     }
+
+    /// @notice (Public) Get the nonce of a given address to use for a ticket purchase approval signature
+    /// @param buyer Address of the account that wants to purchase a ticket
+    /// @return nonce for this account
+    function getNonce(address buyer) external view returns(uint256) {
+        return _userNonces[buyer];
+    }
+
 
     // =============================================================
     // -- Public functions
@@ -165,11 +179,11 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
                 .setUint64(0, uint64(participation.getUint64(0) + msg.value))
                 .setUint32(64, uint32(participation.getUint32(64) + ticketCount));
         }
-        IWinnablesTicket(TICKETS_CONTRACT).mint(msg.sender, raffleId, ticketCount);
         unchecked {
             raffle.totalRaised += msg.value;
             _userNonces[msg.sender]++;
         }
+        IWinnablesTicket(TICKETS_CONTRACT).mint(msg.sender, raffleId, ticketCount);
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
     }
 
@@ -242,7 +256,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         emit NewRaffle(raffleId);
     }
 
-    /// @notice (Admin) Cancel a raffle
+    /// @notice (Public) Cancel a raffle if it can be canceled
     /// @param raffleId ID of the raffle to cancel
     function cancelRaffle(address prizeManager, uint64 chainSelector, uint256 raffleId) external {
         _checkShouldCancel(raffleId);
@@ -269,7 +283,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         _sendETH(balance, msg.sender);
     }
 
-    /// @notice (API) Send a request for random number from Chainlink VRF
+    /// @notice (Public) Send a request for random number from Chainlink VRF
     /// @param raffleId ID of the Raffle we wish to draw a winner for
     function drawWinner(uint256 raffleId) external {
         Raffle storage raffle = _raffles[raffleId];
@@ -292,6 +306,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
     }
 
+    /// @notice (Public) Send a cross-chain message to the Prize Manager to
+    ///         mark the prize as claimable by the winner
+    /// @param raffleId ID of the Raffle we wish to draw a winner for
     function propagateRaffleWinner(address prizeManager, uint64 chainSelector, uint256 raffleId) external {
         Raffle storage raffle = _raffles[raffleId];
         if (raffle.status != RaffleStatus.FULFILLED) {
@@ -302,13 +319,6 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
         _sendCCIPMessage(prizeManager, chainSelector, abi.encodePacked(uint8(CCIPMessageType.WINNER_DRAWN), raffleId, winner));
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
-    }
-
-    /// @notice (Approver) Get the nonce of a given address to use for a ticket purchase approval signature
-    /// @param buyer Address of the account that wants to purchase a ticket
-    /// @return nonce for this account
-    function getNonce(address buyer) external view returns(uint256) {
-        return _userNonces[buyer];
     }
 
     /// @notice (Chainlink VRF Coordinator) Use given random number as a result to determine the winner of a Raffle

@@ -71,14 +71,4 @@ interface IWinnables {
         RaffleStatus status;
         uint256 chainlinkRequestId;
     }
-
-    struct NFTInfo {
-        address contractAddress;
-        uint256 tokenId;
-    }
-
-    struct TokenInfo {
-        address tokenAddress;
-        uint256 amount;
-    }
 }
