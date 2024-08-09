@@ -40,6 +40,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @dev Nonces used in the signature that allows ticket sales to avoid signature reuse
     mapping(address => uint256) private _userNonces;
 
+    /// @dev ETH locked in the contract because it might be needed for a refund
+    uint256 private _lockedETH;
+
     /// @dev Contract constructor
     /// @param _linkToken Address of the LINK ERC20 token on the chain you are deploying to
     /// @param _vrfCoordinator Address of the Chainlink VRFCoordinator contract on the chain you are deploying to
@@ -182,6 +185,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         unchecked {
             raffle.totalRaised += msg.value;
             _userNonces[msg.sender]++;
+            _lockedETH += msg.value;
         }
         IWinnablesTicket(TICKETS_CONTRACT).mint(msg.sender, raffleId, ticketCount);
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
@@ -279,7 +283,10 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
     /// @notice (Admin) Withdraw ETH from a canceled raffle or ticket sales
     function withdrawETH() external onlyRole(0) {
-        uint256 balance = address(this).balance;
+        uint256 balance;
+        unchecked {
+            balance = address(this).balance - _lockedETH;
+        }
         _sendETH(balance, msg.sender);
     }
 
@@ -288,6 +295,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     function drawWinner(uint256 raffleId) external {
         Raffle storage raffle = _raffles[raffleId];
         _checkShouldDraw(raffleId);
+        raffle.status = RaffleStatus.REQUESTED;
 
         uint256 requestId = VRFCoordinatorV2Interface(VRF_COORDINATOR).requestRandomWords(
             KEY_HASH,
@@ -301,7 +309,6 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
             randomWord: 0
         });
         raffle.chainlinkRequestId = requestId;
-        raffle.status = RaffleStatus.REQUESTED;
         emit RequestSent(requestId, raffleId);
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
     }
@@ -319,6 +326,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
         _sendCCIPMessage(prizeManager, chainSelector, abi.encodePacked(uint8(CCIPMessageType.WINNER_DRAWN), raffleId, winner));
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
+        unchecked {
+            _lockedETH -= raffle.totalRaised;
+        }
     }
 
     /// @notice (Chainlink VRF Coordinator) Use given random number as a result to determine the winner of a Raffle

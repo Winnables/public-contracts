@@ -247,6 +247,13 @@ describe('CCIP Ticket Manager', () => {
         .to.be.revertedWithCustomError(manager, 'NothingToSend');
     });
 
+    it('Admin should not be able to withdraw funds supposed to be used for a refund', async () => {
+      await expect(manager.withdrawETH()).to.be.revertedWithCustomError(
+        manager,
+        'NothingToSend'
+      );
+    });
+
     it('Should be able to refund tickets purchased', async () => {
       const contractBalanceBefore = await ethers.provider.getBalance(manager.address);
       const userBalanceBefore = await ethers.provider.getBalance(buyer2.address);
@@ -301,10 +308,10 @@ describe('CCIP Ticket Manager', () => {
             1,
             10,
             currentBlock + 10,
-            0
+            100
           ])
         ));
-        await (await manager.connect(buyer).buyTickets(1, 10, currentBlock + 10, sig)).wait();
+        await (await manager.connect(buyer).buyTickets(1, 10, currentBlock + 10, sig, { value: 100 })).wait();
         buyers.push(buyer);
       }
     });
@@ -314,6 +321,15 @@ describe('CCIP Ticket Manager', () => {
       const tx = await manager.connect(api).drawWinner(1);
       const { events } = await tx.wait();
       expect(events).to.have.lengthOf(3);
+    });
+
+    it('Should not unlock the funds until we guarantee that the winner can claim their prize', async () => {
+      const balance = await ethers.provider.getBalance(manager.address);
+      expect(balance).to.eq(500);
+      await expect(manager.withdrawETH()).to.be.revertedWithCustomError(
+        manager,
+        'NothingToSend'
+      );
     });
 
     it('Should be able to propagate when the winner is drawn', async () => {
@@ -329,5 +345,28 @@ describe('CCIP Ticket Manager', () => {
       expect(buyers.find(b => b.address === drawnWinner)).to.not.be.undefined;
       expect(ccipEvent.args.data.slice(0, 68)).to.eq('0x010000000000000000000000000000000000000000000000000000000000000001');
     });
+
+    it('Should not let non-admin withdraw', async () => {
+      const wallet = await getWalletWithEthers();
+      await expect(manager.connect(wallet).withdrawETH()).to.be.revertedWithCustomError(
+        manager,
+        'MissingRole'
+      );
+    });
+
+    it('Should unlock the funds and let the admin withdraw', async () => {
+      const contractBalanceBefore = await ethers.provider.getBalance(manager.address);
+      const adminBalanceBefore = await ethers.provider.getBalance(signers[0].address);
+      const txReceipt = await (await manager.withdrawETH()).wait();
+      const contractBalanceAfter = await ethers.provider.getBalance(manager.address);
+      const adminBalanceAfter = await ethers.provider.getBalance(signers[0].address);
+      expect(contractBalanceAfter).to.eq(0);
+      expect(adminBalanceAfter).to.eq(
+        adminBalanceBefore.add(contractBalanceBefore).sub(
+          txReceipt.cumulativeGasUsed.mul(txReceipt.effectiveGasPrice)
+        )
+      );
+    });
+
   });
 });
