@@ -70,33 +70,51 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
     /// @notice (Public) Get general information about the state of a raffle
     /// @param id ID of the Raffle
-    /// @return General information about the state the Raffle
-    function getRaffle(uint256 id) external view returns(RaffleView memory) {
+    /// @return startsAt timestamp of when the raffle starts
+    /// @return endsAt timestamp of when the raffle ends
+    /// @return minTicketsThreshold minimum number of tickets that needs to be sold before
+    ///         this raffle is elligible for drawing a winner
+    /// @return maxTicketSupply maximum number of tickets that can be sold for this raffle
+    /// @return maxHoldings maximum number of tickets that one address may hold
+    /// @return totalRaised amount of ETH raised by this raffle
+    /// @return status status of the raffle
+    /// @return chainlinkRequestId ID of the Chainlink VRF request
+    function getRaffle(uint256 id) external view returns(
+        uint64 startsAt,
+        uint64 endsAt,
+        uint32 minTicketsThreshold,
+        uint32 maxTicketSupply,
+        uint32 maxHoldings,
+        uint256 totalRaised,
+        RaffleStatus status,
+        uint256 chainlinkRequestId
+    ) {
         Raffle storage raffle = _raffles[id];
-        return RaffleView({
-            raffleType: raffle.raffleType,
-            startsAt: raffle.startsAt,
-            endsAt: raffle.endsAt,
-            minTicketsThreshold: raffle.minTicketsThreshold,
-            maxTicketSupply: raffle.maxTicketSupply,
-            maxHoldings: raffle.maxHoldings,
-            totalRaised: raffle.totalRaised,
-            status: raffle.status,
-            chainlinkRequestId: raffle.chainlinkRequestId
-        });
+        startsAt = raffle.startsAt;
+        endsAt = raffle.endsAt;
+        minTicketsThreshold = raffle.minTicketsThreshold;
+        maxTicketSupply = raffle.maxTicketSupply;
+        maxHoldings = raffle.maxHoldings;
+        totalRaised = raffle.totalRaised;
+        status = raffle.status;
+        chainlinkRequestId = raffle.chainlinkRequestId;
     }
 
     /// @notice (Public) Shows the participation details of a participant to a raffle
     /// @param raffleId ID of the raffle
     /// @param participant Address of the participant
-    /// @return Participation data as an unpacked struct
-    function getParticipation(uint256 raffleId, address participant) external view returns(ParticipationData memory) {
+    /// @return totalSpent Total spent by address participant for raffle raffleId
+    /// @return totalPurchased Total number of tickets purchased
+    /// @return withdrawn Whether this player has been refunded for this raffle or not
+    function getParticipation(uint256 raffleId, address participant) external view returns(
+        uint128 totalSpent,
+        uint32 totalPurchased,
+        bool withdrawn
+    ) {
         bytes32 participation = _raffles[raffleId].participations[participant];
-        return ParticipationData({
-            totalSpent: uint128(uint256(participation)),
-            totalPurchased: uint32(uint256(participation) >> 128),
-            withdrawn: uint8((uint256(participation) >> 160) & 1) == 1
-        });
+        totalSpent = uint128(uint256(participation));
+        totalPurchased = uint32(uint256(participation) >> 128);
+        withdrawn = uint8((uint256(participation) >> 160) & 1) == 1;
     }
 
     /// @notice (Public) Shows the address of the winner of a raffle

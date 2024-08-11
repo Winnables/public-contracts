@@ -41,14 +41,7 @@ interface IWinnables {
         uint256 randomWord;
     }
 
-    struct ParticipationData {
-        uint128 totalSpent;
-        uint32 totalPurchased;
-        bool withdrawn;
-    }
-
     struct Raffle {
-        RaffleType raffleType;
         RaffleStatus status;
         uint64 startsAt;
         uint64 endsAt;
@@ -58,17 +51,5 @@ interface IWinnables {
         uint256 totalRaised;
         uint256 chainlinkRequestId;
         mapping(address => bytes32) participations;
-    }
-
-    struct RaffleView {
-        RaffleType raffleType;
-        uint64 startsAt;
-        uint64 endsAt;
-        uint32 minTicketsThreshold;
-        uint32 maxTicketSupply;
-        uint32 maxHoldings;
-        uint256 totalRaised;
-        RaffleStatus status;
-        uint256 chainlinkRequestId;
     }
 }
