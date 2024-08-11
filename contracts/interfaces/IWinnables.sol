@@ -42,7 +42,7 @@ interface IWinnables {
     }
 
     struct ParticipationData {
-        uint64 totalSpent;
+        uint128 totalSpent;
         uint32 totalPurchased;
         bool withdrawn;
     }

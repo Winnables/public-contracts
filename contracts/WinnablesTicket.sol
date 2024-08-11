@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./interfaces/IWinnablesTicket.sol";
-import "./libraries/Bits.sol";
 import "./Roles.sol";
 
 /// @title Winnables Ticket

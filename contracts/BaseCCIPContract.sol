@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.24;
 
-import "./libraries/Bits.sol";
 
 contract BaseCCIPContract {
-    using Bits for bytes32;
-
     error InvalidRouter(address router);
     error UnauthorizedCCIPSender();
 
@@ -41,8 +38,9 @@ contract BaseCCIPContract {
     }
 
     function _packCCIPContract(address contractAddress, uint64 chainSelector) internal pure returns(bytes32) {
-        return bytes32(0)
-            .setAddress(0, contractAddress)
-            .setUint64(160, chainSelector);
+        return bytes32(
+            uint256(uint160(contractAddress)) |
+            uint256(chainSelector << 160)
+        );
     }
 }

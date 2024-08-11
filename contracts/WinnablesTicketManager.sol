@@ -12,12 +12,10 @@ import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 import "./Roles.sol";
 import "./interfaces/IWinnablesTicketManager.sol";
 import "./interfaces/IWinnablesTicket.sol";
-import "./libraries/Bits.sol";
 import "./BaseCCIPSender.sol";
 import "./BaseCCIPReceiver.sol";
 
 contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketManager, BaseCCIPSender, BaseCCIPReceiver {
-    using Bits for bytes32;
     using SafeERC20 for IERC20;
 
     uint256 constant internal MIN_RAFFLE_DURATION = 60;
@@ -95,9 +93,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     function getParticipation(uint256 raffleId, address participant) external view returns(ParticipationData memory) {
         bytes32 participation = _raffles[raffleId].participations[participant];
         return ParticipationData({
-            totalSpent: participation.getUint64(0),
-            totalPurchased: participation.getUint32(64),
-            withdrawn: participation.getBool(96)
+            totalSpent: uint128(uint256(participation)),
+            totalPurchased: uint32(uint256(participation) >> 128),
+            withdrawn: uint8((uint256(participation) >> 160) & 1) == 1
         });
     }
 
@@ -176,11 +174,15 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         _checkPurchaseSig(raffleId, ticketCount, blockNumber, signature);
 
         Raffle storage raffle = _raffles[raffleId];
-        bytes32 participation = raffle.participations[msg.sender];
+        uint256 participation = uint256(raffle.participations[msg.sender]);
+        uint128 totalPaid = uint128(participation) + uint128(msg.value);
+        uint32 totalPurchased = uint32(participation >> 128) + uint32(ticketCount);
         unchecked {
-            raffle.participations[msg.sender] = participation
-                .setUint64(0, uint64(participation.getUint64(0) + msg.value))
-                .setUint32(64, uint32(participation.getUint32(64) + ticketCount));
+            raffle.participations[msg.sender] = bytes32(
+                (participation & type(uint256).max << 160)
+                | totalPaid |
+                uint256(totalPurchased) << 128
+            );
         }
         unchecked {
             raffle.totalRaised += msg.value;
@@ -201,14 +203,15 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         }
         for (uint256 i = 0; i < players.length; ) {
             address player = players[i];
-            bytes32 participation = raffle.participations[player];
+            uint256 participation = uint256(raffle.participations[player]);
 
-            if (participation.getBool(96)) {
+            if (((participation >> 160) & 1) == 1) {
                 revert PlayerAlreadyRefunded(player);
             }
-            raffle.participations[player] = participation.setBool(96, true);
-            _sendETH(uint256(participation.getUint64(0)), player);
-            emit PlayerRefund(raffleId, player, participation);
+            raffle.participations[player] = bytes32(participation | (1 << 160));
+            uint256 amountToSend = (participation & type(uint128).max);
+            _sendETH(amountToSend, player);
+            emit PlayerRefund(raffleId, player, bytes32(participation));
             unchecked { ++i; }
         }
     }
@@ -421,8 +424,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         if (block.timestamp > raffle.endsAt) {
             revert RaffleHasEnded();
         }
+        uint256 ticketPurchased = uint256(uint32(uint256(raffle.participations[msg.sender]) >> 128));
         unchecked {
-            if (raffle.participations[msg.sender].getUint32(64) + ticketCount > raffle.maxHoldings) {
+            if (ticketPurchased + ticketCount > raffle.maxHoldings) {
                 revert TooManyTickets();
             }
         }

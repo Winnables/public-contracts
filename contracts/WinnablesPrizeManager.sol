@@ -300,12 +300,14 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         }
 
         CCIPMessageType messageType = CCIPMessageType(uint8(message.data[0]));
+        uint256 raffleId;
+        address winner;
         if (messageType == CCIPMessageType.RAFFLE_CANCELED) {
-            uint256 raffleId = _decodeRaffleCanceledMessage(message.data);
+            raffleId = _decodeRaffleCanceledMessage(message.data);
             _cancelRaffle(raffleId);
             return;
         }
-        (uint256 raffleId, address winner) = _decodeWinnerDrawnMessage(message.data);
+        (raffleId, winner) = _decodeWinnerDrawnMessage(message.data);
         _rafflePrize[raffleId].winner = winner;
         emit WinnerPropagated(raffleId, winner);
     }

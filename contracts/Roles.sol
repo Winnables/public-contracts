@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.24;
 
-import "./libraries/Bits.sol";
-
 contract Roles {
-    using Bits for bytes32;
-
     error MissingRole(address user, uint256 role);
     event RoleUpdated(address indexed user, uint256 indexed role, bool indexed status);
 
@@ -20,19 +16,19 @@ contract Roles {
     }
 
     function _hasRole(address user, uint8 role) internal view returns(bool) {
-        bytes32 roles = _addressRoles[user];
-        return roles.getBool(role);
+        uint256 roles = uint256(_addressRoles[user]);
+        return (roles & (1 << role)) > 0;
     }
 
     function _checkRole(address user, uint8 role) internal virtual view {
-        bytes32 roles = _addressRoles[user];
-        if (!roles.getBool(role)) {
+        if (!_hasRole(user, role)) {
             revert MissingRole(user, role);
         }
     }
 
     function _setRole(address user, uint8 role, bool status) internal virtual {
-        _addressRoles[user] = _addressRoles[user].setBool(role, status);
+        uint256 roles = uint256(_addressRoles[user]);
+        _addressRoles[user] = bytes32(roles | (1 << role));
         emit RoleUpdated(user, role, status);
     }
 
