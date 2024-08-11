@@ -3,7 +3,6 @@ pragma solidity 0.8.24;
 
 interface IWinnables {
     error InvalidPrize();
-    error RaffleNeedsStartTime();
     error RaffleHasNotStarted();
     error RaffleHasEnded();
     error NothingToWithdraw();
@@ -15,7 +14,6 @@ interface IWinnables {
     error RequestNotFound(uint256 requestId);
     error TokenWithdrawFailed(address token, address receiver, uint256 amount);
     error ExpiredCoupon();
-    error SendETHFailed();
     error PlayerAlreadyRefunded(address player);
     error NothingToSend();
     error Unauthorized();
@@ -26,6 +24,8 @@ interface IWinnables {
     error InsufficientBalance();
     error NoWinner();
     error ETHTransferFail();
+    error RaffleRequiresTicketSupplyCap();
+    error RaffleRequiresMaxHoldings();
 
     event WinnerDrawn(uint256 indexed requestId);
     event RequestSent(uint256 indexed requestId, uint256 indexed raffleId);

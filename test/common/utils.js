@@ -46,23 +46,6 @@ function getTicketOwnerships(raffle) {
   return ticketOwners;
 }
 
-function getWinner(round) {
-  const winningIndex = round.randomWord.mod(round.totalValue);
-  let i = 0;
-  for (let i = 0; i < round.totalValue; ) {
-    const entry = round.entries[i];
-    if (!entry) return null;
-    const { amount, buyer } = entry;
-    if (i <= winningIndex && i + amount > winningIndex) {
-      return {
-        index: i,
-        winner: buyer
-      };
-    }
-    i += amount;
-  }
-}
-
 /**
  * Returns random integer between start and end numbers
  * @param {number} start 
@@ -82,8 +65,4 @@ module.exports = {
   blockTime,
   timeSeconds,
   getWalletWithEthers,
-  computePrice,
-  getTicketOwnerships,
-  randomInteger,
-  getWinner,
 }

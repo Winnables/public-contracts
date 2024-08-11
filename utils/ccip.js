@@ -65,7 +65,7 @@ async function linkNetworks(ticketsNetwork, prizesNetwork) {
   console.log('Linking CCIP contracts');
   await (await ticketsNetwork.contract.setCCIPCounterpart(prizesNetwork.contract.address, prizesNetwork.chainSelector, true)).wait();
   console.log('Tickets -> Prize');
-  ticketsNetwork.ccipRouter.on('CCIPMessage', async (chain, receiver, message) => {
+  ticketsNetwork.ccipRouter.on('MockCCIPMessageEvent', async (chain, receiver, message) => {
     console.log('Forwarding CCIP Message from chain', ticketsNetwork.chainSelector, 'to', chain.toString(), 'in 10 sec');
     const recipient = ethers.utils.getAddress('0x' + receiver.slice(-40));
     const outMessage = {
@@ -81,7 +81,7 @@ async function linkNetworks(ticketsNetwork, prizesNetwork) {
   });
   await (await prizesNetwork.contract.setCCIPCounterpart(ticketsNetwork.contract.address, ticketsNetwork.chainSelector, true)).wait();
   console.log('Prize -> Tickets');
-  prizesNetwork.ccipRouter.on('CCIPMessage', async (chain, receiver, message) => {
+  prizesNetwork.ccipRouter.on('MockCCIPMessageEvent', async (chain, receiver, message) => {
     console.log('Forwarding CCIP Message from chain', prizesNetwork.chainSelector, 'to', chain.toString(), 'in 10 sec');
     const recipient = ethers.utils.getAddress('0x' + receiver.slice(-40));
     const outMessage = {

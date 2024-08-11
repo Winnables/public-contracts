@@ -8,7 +8,6 @@ contract BaseCCIPContract {
 
     error InvalidRouter(address router);
     error UnauthorizedCCIPSender();
-    error InvalidCCIPMessage();
 
     address internal immutable CCIP_ROUTER;
 
@@ -32,20 +31,18 @@ contract BaseCCIPContract {
     /// @param contractAddress Address of counterpart contract on the remote chain
     /// @param chainSelector CCIP Chain selector of the remote chain
     /// @param enabled Boolean representing whether this counterpart should be allowed or denied
-    function setCCIPCounterpart(
+    function _setCCIPCounterpart(
         address contractAddress,
         uint64 chainSelector,
         bool enabled
-    ) external virtual {}
+    ) internal {
+        bytes32 counterpart = _packCCIPContract(contractAddress, chainSelector);
+        _ccipContracts[counterpart] = enabled;
+    }
 
     function _packCCIPContract(address contractAddress, uint64 chainSelector) internal pure returns(bytes32) {
         return bytes32(0)
             .setAddress(0, contractAddress)
             .setUint64(160, chainSelector);
-    }
-
-    function _unpackCCIPContract(bytes32 pack) internal pure returns(address contractAddress, uint64 chainSelector) {
-        contractAddress = pack.getAddress(0);
-        chainSelector = pack.getUint64(160);
     }
 }

@@ -1,4 +1,3 @@
-const ask = require('./ask');
 const env = process.env.NODE_ENV ?? 'local';
 require(`dotenv`).config({ path: `.env.${env}` });
 
@@ -96,11 +95,12 @@ async function deployAll() {
 }
 
 async function ccipDeployTicketManager(deployer, approver, verbose = false) {
+  const signers = await ethers.getSigners();
   if (!deployer) {
-    [deployer] = await ethers.getSigners();
+    deployer = signers[0];
   }
   if (!approver) {
-    [_, approver] = await ethers.getSigners();
+    approver = signers[1];
   }
   const { chainId } = await deployer.provider.getNetwork();
   if (verbose) {

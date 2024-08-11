@@ -11,7 +11,7 @@ contract CCIPRouter is IRouterClient {
     uint256 private _counter;
     address private link;
 
-    event CCIPMessage(uint64 chain, bytes receiver, bytes data);
+    event MockCCIPMessageEvent(uint64 chain, bytes receiver, bytes data);
     event MessageExecuted(bytes32 messageId, uint64 sourceChainSelector, address offRamp, bytes32 calldataHash);
 
     constructor(address _link) {
@@ -39,7 +39,7 @@ contract CCIPRouter is IRouterClient {
         uint64 destinationChainSelector,
         Client.EVM2AnyMessage calldata message
     ) external payable returns (bytes32) {
-        emit CCIPMessage(destinationChainSelector, message.receiver, message.data);
+        emit MockCCIPMessageEvent(destinationChainSelector, message.receiver, message.data);
         _counter++;
         LinkTokenInterface(link).transferFrom(msg.sender, address(this), getFee(destinationChainSelector, message));
         return keccak256(abi.encodePacked(destinationChainSelector, message.data, _counter));

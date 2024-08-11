@@ -12,9 +12,9 @@ interface IWinnablesTicket is IERC1155MetadataURI {
   error InsufficientBalance();
   error TransferRejected();
   error NoOp();
-  error NoApprovals();
   error InexistentTicket();
   error CallerNotContractOwner();
+  error NotImplemented();
 
   event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
   event NewTicket(uint256 indexed id, uint256 indexed startId, uint256 indexed amount);

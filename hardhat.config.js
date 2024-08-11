@@ -1,7 +1,7 @@
 require('dotenv').config();
 require("@nomicfoundation/hardhat-toolbox");
 require("@nomiclabs/hardhat-ethers");
-const deployerAccount = process.env.DEPLOYER_PRIVATE_KEY;
+require("solidity-coverage");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {

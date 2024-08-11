@@ -12,7 +12,11 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
     error MissingCCIPParams();
     error InsufficientLinkBalance(uint256 balance, uint256 required);
 
-    function _sendCCIPMessage(address ccipDestAddress, uint64 ccipDestChainSelector, bytes memory data) internal returns(bytes32 messageId) {
+    function _sendCCIPMessage(
+        address ccipDestAddress,
+        uint64 ccipDestChainSelector,
+        bytes memory data
+    ) internal returns(bytes32 messageId) {
         if (ccipDestAddress == address(0) || ccipDestChainSelector == uint64(0)) {
             revert MissingCCIPParams();
         }

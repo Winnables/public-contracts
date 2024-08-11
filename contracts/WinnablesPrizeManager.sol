@@ -109,20 +109,9 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     /// @notice (Public) Send the prize for a Raffle to its rightful winner
     /// @param raffleId ID of the raffle
     function claimPrize(uint256 raffleId) external {
-        if (msg.sender != _rafflePrize[raffleId].winner) {
-            revert UnauthorizedToClaim();
-        }
-        RafflePrize storage rafflePrizeStatus = _rafflePrize[raffleId];
-        if (rafflePrizeStatus.status == RafflePrizeStatus.CLAIMED) {
-            revert AlreadyClaimed();
-        } else if (rafflePrizeStatus.status == RafflePrizeStatus.CANCELED) {
-            revert InvalidRaffle();
-        }
-        rafflePrizeStatus.status = RafflePrizeStatus.CLAIMED;
-        RaffleType raffleType = rafflePrizeStatus.raffleType;
-        if (raffleType == RaffleType.NONE) {
-            revert InvalidRaffle();
-        } else if (raffleType == RaffleType.NFT) {
+        RafflePrize storage rafflePrize = _rafflePrize[raffleId];
+        RaffleType raffleType = rafflePrize.raffleType;
+        if (raffleType == RaffleType.NFT) {
             NFTInfo storage raffle = _nftRaffles[raffleId];
             _nftLocked[raffle.contractAddress][raffle.tokenId] = false;
             _sendNFTPrize(raffle.contractAddress, raffle.tokenId, msg.sender);
@@ -133,7 +122,16 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         } else if (raffleType == RaffleType.ETH) {
             unchecked { _ethLocked -= _ethRaffles[raffleId]; }
             _sendETHPrize(_ethRaffles[raffleId], msg.sender);
+        } else {
+            revert InvalidRaffle();
         }
+        if (msg.sender != rafflePrize.winner) {
+            revert UnauthorizedToClaim();
+        }
+        if (rafflePrize.status == RafflePrizeStatus.CLAIMED) {
+            revert AlreadyClaimed();
+        }
+        rafflePrize.status = RafflePrizeStatus.CLAIMED;
         emit PrizeClaimed(raffleId, msg.sender);
     }
 
@@ -149,9 +147,8 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         address contractAddress,
         uint64 chainSelector,
         bool enabled
-    ) external override onlyRole(0) {
-        bytes32 counterpart = _packCCIPContract(contractAddress, chainSelector);
-        _ccipContracts[counterpart] = enabled;
+    ) external onlyRole(0) {
+        _setCCIPCounterpart(contractAddress, chainSelector, enabled);
     }
 
     /// @notice (Admin) Send the prize for a Raffle to its rightful winner
@@ -167,13 +164,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         address nft,
         uint256 tokenId
     ) external onlyRole(0) {
-        if (raffleId == 0) {
-            revert IllegalRaffleId();
-        }
-        RafflePrize storage rafflePrize = _rafflePrize[raffleId];
-        if (rafflePrize.raffleType != RaffleType.NONE) {
-            revert InvalidRaffleId();
-        }
+        RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         if (IERC721(nft).ownerOf(tokenId) != address(this)) {
             revert InvalidPrize();
         }
@@ -181,7 +172,6 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
             revert InvalidPrize();
         }
         rafflePrize.raffleType = RaffleType.NFT;
-        rafflePrize.status = RafflePrizeStatus.CREATED;
         _nftLocked[nft][tokenId] = true;
         _nftRaffles[raffleId].contractAddress = nft;
         _nftRaffles[raffleId].tokenId = tokenId;
@@ -201,20 +191,13 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         uint256 raffleId,
         uint256 amount
     ) external payable onlyRole(0) {
-        if (raffleId == 0) {
-            revert IllegalRaffleId();
-        }
-        RafflePrize storage rafflePrize = _rafflePrize[raffleId];
-        if (rafflePrize.raffleType != RaffleType.NONE) {
-            revert InvalidRaffleId();
-        }
+        RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         uint256 ethBalance = address(this).balance;
 
         if (ethBalance < amount + _ethLocked) {
             revert InvalidPrize();
         }
         rafflePrize.raffleType = RaffleType.ETH;
-        rafflePrize.status = RafflePrizeStatus.CREATED;
         _ethLocked += amount;
         _ethRaffles[raffleId] = amount;
 
@@ -235,19 +218,12 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         address token,
         uint256 amount
     ) external onlyRole(0) {
-        if (raffleId == 0) {
-            revert IllegalRaffleId();
-        }
-        RafflePrize storage rafflePrize = _rafflePrize[raffleId];
-        if (rafflePrize.raffleType != RaffleType.NONE) {
-            revert InvalidRaffleId();
-        }
+        RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         uint256 tokenBalance = IERC20(token).balanceOf(address(this));
         if (tokenBalance < amount + _tokensLocked[token]) {
             revert InvalidPrize();
         }
         rafflePrize.raffleType = RaffleType.TOKEN;
-        rafflePrize.status = RafflePrizeStatus.CREATED;
         unchecked { _tokensLocked[token] += amount; }
         _tokenRaffles[raffleId].tokenAddress = token;
         _tokenRaffles[raffleId].amount = amount;
@@ -301,8 +277,19 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     // -- Internal functions
     // =============================================================
 
+    function _checkValidRaffle(uint256 raffleId) internal view returns(RafflePrize storage) {
+        if (raffleId == 0) {
+            revert IllegalRaffleId();
+        }
+        RafflePrize storage rafflePrize = _rafflePrize[raffleId];
+        if (rafflePrize.raffleType != RaffleType.NONE) {
+            revert InvalidRaffleId();
+        }
+        return rafflePrize;
+    }
+
     /// @notice Callback called by CCIP Router. Receives CCIP message and handles it
-    /// @param message CCIPMessage
+    /// @param message CCIP Message
     function _ccipReceive(
         Client.Any2EVMMessage memory message
     ) internal override {
@@ -318,20 +305,17 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
             _cancelRaffle(raffleId);
             return;
         }
-        if (messageType == CCIPMessageType.WINNER_DRAWN) {
-            (uint256 raffleId, address winner) = _decodeWinnerDrawnMessage(message.data);
-            _rafflePrize[raffleId].winner = winner;
-            emit WinnerPropagated(raffleId, winner);
-            return;
-        }
-        revert InvalidCCIPMessage();
+        (uint256 raffleId, address winner) = _decodeWinnerDrawnMessage(message.data);
+        _rafflePrize[raffleId].winner = winner;
+        emit WinnerPropagated(raffleId, winner);
     }
 
     function _cancelRaffle(uint256 raffleId) internal {
         RaffleType raffleType = _rafflePrize[raffleId].raffleType;
-        if (raffleType == RaffleType.NONE || _rafflePrize[raffleId].status == RafflePrizeStatus.CANCELED) {
+        if (_rafflePrize[raffleId].status == RafflePrizeStatus.CANCELED) {
             revert InvalidRaffle();
-        } else if (raffleType == RaffleType.NFT) {
+        }
+        if (raffleType == RaffleType.NFT) {
             NFTInfo storage nftInfo = _nftRaffles[raffleId];
             _nftLocked[nftInfo.contractAddress][nftInfo.tokenId] = false;
         } else if (raffleType == RaffleType.TOKEN) {
@@ -339,6 +323,8 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
             unchecked { _tokensLocked[tokenInfo.tokenAddress] -= tokenInfo.amount; }
         } else if (raffleType == RaffleType.ETH) {
             unchecked { _ethLocked -= _ethRaffles[raffleId]; }
+        } else {
+            revert InvalidRaffle();
         }
         _rafflePrize[raffleId].status = RafflePrizeStatus.CANCELED;
         emit PrizeUnlocked(raffleId);

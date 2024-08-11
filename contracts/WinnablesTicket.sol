@@ -35,7 +35,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
   string private _uri;
 
   /// @dev Contract constructor
-  constructor(){
+  constructor() {
     _setRole(msg.sender, 0, true);
     owner = msg.sender;
   }
@@ -112,7 +112,6 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
       interfaceId == type(IERC165).interfaceId;
   }
 
-
   /// @notice (Public) Get the total number of existing tickets for a given Raffle ID
   /// @param id ID of the Raffle
   /// @return Total number of existing tickets for that Raffle
@@ -131,7 +130,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
 
   /// @notice Approvals aren't supported in this collection
   function setApprovalForAll(address, bool) external pure override {
-    revert NoApprovals();
+    revert NotImplemented();
   }
 
   /// @notice Transfers aren't supported in this collection
@@ -142,7 +141,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
     uint256,
     bytes calldata
   ) external pure override {
-    revert TransferRejected();
+    revert NotImplemented();
   }
 
   /// @notice Transfers aren't supported in this collection
@@ -153,7 +152,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
     uint256[] calldata,
     bytes calldata
   ) external pure override {
-    revert TransferRejected();
+    revert NotImplemented();
   }
 
   /// @notice Update Metadata URI
@@ -165,7 +164,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
   // -- Admin functions
   // =============================================================
 
-  /// @notice (Admin) Update Token URI
+  /// @notice (Owner) Update Token URI
   function setURI(string memory newuri) external onlyOwner {
     _uri = newuri;
   }
@@ -200,7 +199,7 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
     _doSafeTransferAcceptanceCheck(operator, address(0), to, id, amount);
   }
 
-  /// @notice (Winnable Contract) Batch mint Raffle tickets
+  /// @notice Batch mint Raffle tickets is not implemented
   /// @param to Mint to
   /// @param ids List of Raffle ID for which the tickets are minted
   /// @param amounts List of quantities of tickets to mint for the corresponsing ids
@@ -208,32 +207,8 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
     address to,
     uint256[] calldata ids,
     uint256[] calldata amounts
-  ) external onlyRole(1) {
-    if (to == address(0)) {
-      revert TransferToAddressZero();
-    }
-    if (ids.length != amounts.length) {
-      revert InconsistentParametersLengths();
-    }
-
-    address operator = msg.sender;
-
-    for (uint256 i = 0; i < ids.length;)  {
-      uint256 id = ids[i];
-      uint256 amount = amounts[i];
-      uint256 startId = _supplies[id];
-      unchecked {
-        _balances[id][to] += amount;
-        _supplies[id] = startId + amount;
-        _ticketOwnership[id][startId] = to;
-        ++i;
-      }
-      emit NewTicket(id, startId, amount);
-    }
-
-    emit TransferBatch(operator, address(0), to, ids, amounts);
-
-    _doSafeBatchTransferAcceptanceCheck(operator, address(0), to, ids, amounts);
+  ) external {
+    revert NotImplemented();
   }
 
   // =============================================================
@@ -251,27 +226,6 @@ contract WinnablesTicket is Roles, IWinnablesTicket {
     if (to.isContract()) {
       try IERC1155Receiver(to).onERC1155Received(operator, from, id, amount, "") returns (bytes4 response) {
         if (response != IERC1155Receiver.onERC1155Received.selector) {
-          revert TransferRejected();
-        }
-      } catch {
-        revert TransferRejected();
-      }
-    }
-  }
-
-  /// @dev If the recipient of a ticket is a contract, check that it is a valid receiver
-  function _doSafeBatchTransferAcceptanceCheck(
-    address operator,
-    address from,
-    address to,
-    uint256[] memory ids,
-    uint256[] memory amounts
-  ) private {
-    if (to.isContract()) {
-      try IERC1155Receiver(to).onERC1155BatchReceived(operator, from, ids, amounts, "") returns (
-        bytes4 response
-      ) {
-        if (response != IERC1155Receiver.onERC1155BatchReceived.selector) {
           revert TransferRejected();
         }
       } catch {

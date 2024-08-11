@@ -24,7 +24,6 @@ interface IWinnablesPrizeManager is IWinnables {
 
     enum RafflePrizeStatus {
         NONE,
-        CREATED,
         CLAIMED,
         CANCELED
     }

@@ -45,6 +45,20 @@ describe('CCIP Prize Manager', () => {
       nft.address,
       1
     )).to.be.revertedWithCustomError(manager, 'MissingRole');
+    await expect(manager.connect(randomUser).lockTokens(
+      counterpartContractAddress,
+      1,
+      1,
+      token.address,
+      100
+    )).to.be.revertedWithCustomError(manager, 'MissingRole');
+    await expect(manager.connect(randomUser).lockETH(
+      counterpartContractAddress,
+      1,
+      1,
+      100,
+      { value: 100 }
+    )).to.be.revertedWithCustomError(manager, 'MissingRole');
   });
 
   it('Should not be able to lock a NFT prize before sending it', async () => {
@@ -88,6 +102,17 @@ describe('CCIP Prize Manager', () => {
     )).to.be.revertedWithCustomError(manager, 'InsufficientLinkBalance');
   });
 
+  it('Cannot create Raffle #0', async () => {
+    const tx = manager.lockNFT(
+      counterpartContractAddress,
+      1,
+      0,
+      nft.address,
+      1
+    );
+    await expect(tx).to.be.revertedWithCustomError(manager, 'IllegalRaffleId');
+  });
+
   it('Should be able to lock NFT prize with enough LINK', async () => {
     await (await link.connect(signers[0]).mint(manager.address, ethers.utils.parseEther('100'))).wait();
     const tx = await manager.connect(winnablesDeployer).lockNFT(
@@ -99,7 +124,30 @@ describe('CCIP Prize Manager', () => {
     );
     const { events } = await tx.wait();
     const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
-    expect(ccipMessageEvent.name).to.eq('CCIPMessage');
+    expect(ccipMessageEvent.name).to.eq('MockCCIPMessageEvent');
+    await expect(manager.getTokenRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    await expect(manager.getETHRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    const nftInfo = await manager.getNFTRaffle(1);
+    expect(nftInfo.contractAddress).to.eq(nft.address);
+    expect(nftInfo.tokenId).to.eq(1);
+    const prize = await manager.getRaffle(1);
+    expect(prize.raffleType).to.eq(1);
+    expect(prize.status).to.eq(0);
+    expect(prize.winner).to.eq(ethers.constants.AddressZero);
+  });
+
+  it('Should not be able to lock ETH prize with existing raffle ID', async () => {
+    await (await link.connect(signers[0]).mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    const tx = manager.connect(winnablesDeployer).lockETH(
+      counterpartContractAddress,
+      1,
+      1,
+      100,
+      {
+        value: 100
+      }
+    );
+    await expect(tx).to.be.revertedWithCustomError(manager, 'InvalidRaffleId');
   });
 
   it('Should be able to lock ETH prize with enough LINK', async () => {
@@ -115,7 +163,15 @@ describe('CCIP Prize Manager', () => {
     );
     const { events } = await tx.wait();
     const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
-    expect(ccipMessageEvent.name).to.eq('CCIPMessage');
+    expect(ccipMessageEvent.name).to.eq('MockCCIPMessageEvent');
+    await expect(manager.getTokenRaffle(2)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    await expect(manager.getNFTRaffle(2)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    const amount = await manager.getETHRaffle(2);
+    expect(amount).to.eq(100);
+    const prize = await manager.getRaffle(2);
+    expect(prize.raffleType).to.eq(2);
+    expect(prize.status).to.eq(0);
+    expect(prize.winner).to.eq(ethers.constants.AddressZero);
   });
 
   it('Should be able to lock Tokens prize with enough LINK', async () => {
@@ -131,7 +187,169 @@ describe('CCIP Prize Manager', () => {
     );
     const { events } = await tx.wait();
     const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
-    expect(ccipMessageEvent.name).to.eq('CCIPMessage');
+    expect(ccipMessageEvent.name).to.eq('MockCCIPMessageEvent');
+    await expect(manager.getNFTRaffle(3)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    await expect(manager.getETHRaffle(3)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    const tokenInfo = await manager.getTokenRaffle(3);
+    expect(tokenInfo.tokenAddress).to.eq(token.address);
+    expect(tokenInfo.amount).to.eq(100);
+    const prize = await manager.getRaffle(3);
+    expect(prize.raffleType).to.eq(3);
+    expect(prize.status).to.eq(0);
+    expect(prize.winner).to.eq(ethers.constants.AddressZero);
+  });
+
+  it('Cannot create Raffle with existing ID', async () => {
+    const tx = manager.lockNFT(
+      counterpartContractAddress,
+      1,
+      1,
+      nft.address,
+      1
+    );
+    await expect(tx).to.be.revertedWithCustomError(manager, 'InvalidRaffleId');
+  });
+
+  it('Cannot re-use locked NFT', async () => {
+    const tx = manager.lockNFT(
+      counterpartContractAddress,
+      1,
+      4,
+      nft.address,
+      1
+    );
+    await expect(tx).to.be.revertedWithCustomError(manager, 'InvalidPrize');
+  });
+
+  describe('Attempts to cancel the raffle and withdraw the NFT', () => {
+    before(async () => {
+      snapshot = await helpers.takeSnapshot();
+    });
+    after(async () => {
+      await snapshot.restore();
+    });
+
+    it('Cannot set CCIP Counterpart as a non-admin', async () => {
+      await expect(manager.connect(signers[1]).setCCIPCounterpart(
+        counterpartContractAddress,
+        1,
+        true
+      )).to.be.revertedWithCustomError(manager, 'MissingRole')
+    })
+
+    it('Cannot cancel non-existing raffle', async () => {
+      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x000000000000000000000000000000000000000000000000000000000000000005',
+          destTokenAmounts: []
+        })
+      );
+      await expect(tx).to.be.revertedWithCustomError(
+        manager,
+        'InvalidRaffle'
+      );
+    });
+  });
+
+  describe('Attempts to cancel the raffle and withdraw the NFT', () => {
+    before(async () => {
+      snapshot = await helpers.takeSnapshot();
+    });
+    after(async () => {
+      await snapshot.restore();
+    });
+    it('Can\'t withdraw the prize', async () => {
+      await expect(manager.withdrawNFT(nft.address, 1))
+        .to.be.revertedWithCustomError(manager, 'NFTLocked');
+    });
+
+    it('Can\'t unlock the prize from an unknown router', async () => {
+      await expect(manager.ccipReceive({
+        messageId: ethers.constants.HashZero,
+        sourceChainSelector: 1,
+        sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+        data: '0x000000000000000000000000000000000000000000000000000000000000000001',
+        destTokenAmounts: []
+      })).to.be.revertedWithCustomError(manager, 'InvalidRouter');
+    });
+
+    it('Can\'t unlock the prize from an unauthorized sender', async () => {
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x000000000000000000000000000000000000000000000000000000000000000001',
+          destTokenAmounts: []
+        })
+      );
+      await expect(tx).to.be.revertedWithCustomError(manager, 'UnauthorizedCCIPSender');
+    })
+
+    it('Can unlock the tokens with a cancel message', async () => {
+      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
+      const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x000000000000000000000000000000000000000000000000000000000000000001',
+          destTokenAmounts: []
+        })
+      );
+      const { events } = await tx.wait();
+      expect(events).to.have.lengthOf(1);
+      expect(events[0].event).to.eq('PrizeUnlocked');
+      const prize = await manager.getRaffle(1);
+      expect(prize.raffleType).to.eq(1);
+      expect(prize.status).to.eq(2);
+      expect(prize.winner).to.eq(ethers.constants.AddressZero);
+    });
+
+    it('Cannot decode invalid CCIP opcode', async () => {
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x03',
+          destTokenAmounts: []
+        })
+      );
+      await expect(tx).to.be.revertedWithPanic(0x21);
+    });
+
+    it('Cannot cancel twice', async () => {
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x000000000000000000000000000000000000000000000000000000000000000001',
+          destTokenAmounts: []
+        })
+      );
+      await expect(tx).to.be.revertedWithCustomError(
+        manager,
+        'InvalidRaffle'
+      )
+    });
+
+    it('Can withdraw the NFT now', async () => {
+      const tx = await manager.withdrawNFT(nft.address, 1);
+      const { events } = await tx.wait();
+      expect(events).to.have.lengthOf(1);
+      const transferEvent = nft.interface.parseLog(events[0]);
+      expect(transferEvent.name).to.eq('Transfer');
+      const { from, to, tokenId } = transferEvent.args;
+      expect(from).to.eq(manager.address);
+      expect(to).to.eq(winnablesDeployer.address);
+      expect(tokenId).to.eq(1);
+    });
   });
 
   describe('Attempts to cancel the raffle and withdraw the ETH', () => {
@@ -184,6 +402,14 @@ describe('CCIP Prize Manager', () => {
       expect(events[0].event).to.eq('PrizeUnlocked');
     });
 
+    it('Can\'t withdraw ETH to non-receiver contract', async () => {
+      await (await manager.setRole(ccipRouter.address, 0, true)).wait();
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).withdrawETH(100)
+      );
+      await expect(tx).to.be.revertedWithCustomError(manager, 'ETHTransferFail');
+    });
+
     it('Can withdraw the ETH now', async () => {
       const contractBalanceBefore = await ethers.provider.getBalance(manager.address);
       const userBalanceBefore = await ethers.provider.getBalance(winnablesDeployer.address);
@@ -206,6 +432,17 @@ describe('CCIP Prize Manager', () => {
     after(async () => {
       await snapshot.restore();
     });
+
+    it('Cannot withdraw prizes as a non-admin', async () => {
+      const asNonAdmin = manager.connect(signers[1]);
+      await expect(asNonAdmin.withdrawToken(token.address, 100))
+        .to.be.revertedWithCustomError(manager, 'MissingRole');
+      await expect(asNonAdmin.withdrawNFT(nft.address, 1))
+        .to.be.revertedWithCustomError(manager, 'MissingRole');
+      await expect(asNonAdmin.withdrawETH(100))
+        .to.be.revertedWithCustomError(manager, 'MissingRole');
+    })
+
     it('Can\'t withdraw the prize', async () => {
       await expect(manager.withdrawToken(token.address, 100))
         .to.be.revertedWithCustomError(manager, 'InsufficientBalance');
@@ -235,7 +472,6 @@ describe('CCIP Prize Manager', () => {
     })
 
     it('Can unlock the tokens with a cancel message', async () => {
-      console.log(await token.balanceOf(manager.address));
       await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
@@ -271,8 +507,13 @@ describe('CCIP Prize Manager', () => {
     after(async () => {
       await snapshot.restore();
     });
+
     it('Can\'t claim the prize', async () => {
       await expect(manager.claimPrize(1)).to.be.revertedWithCustomError(manager, 'UnauthorizedToClaim');
+    });
+
+    it('Can\'t claim a prize for a non-existing raffle', async () => {
+      await expect(manager.claimPrize(5)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
     });
 
     it('Can unlock the prize with a WinnerDrawn message', async () => {
@@ -295,6 +536,8 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can claim the NFT now', async () => {
+      const raffleWinner = await manager.getWinner(1);
+      expect(raffleWinner).to.eq(signers[0].address);
       const tx = await manager.claimPrize(1);
       const { events } = await tx.wait();
       expect(events).to.have.lengthOf(2);
@@ -318,6 +561,7 @@ describe('CCIP Prize Manager', () => {
     after(async () => {
       await snapshot.restore();
     });
+
     it('Can\'t claim the prize', async () => {
       await expect(manager.claimPrize(2)).to.be.revertedWithCustomError(manager, 'UnauthorizedToClaim');
     });
@@ -358,6 +602,48 @@ describe('CCIP Prize Manager', () => {
       const { raffleId, winner } = events[0].args;
       expect(raffleId).to.eq(2);
       expect(winner).to.eq(winnablesDeployer.address);
+    });
+  });
+
+  describe('Attempts to draw the raffle and claim the ETH as a non-receiver contract', () => {
+    before(async () => {
+      snapshot = await helpers.takeSnapshot();
+    });
+    after(async () => {
+      await snapshot.restore();
+    });
+
+    it('Unlocks the prize with a WinnerDrawn message', async () => {
+      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
+      const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x' +
+            '01' +
+            '0000000000000000000000000000000000000000000000000000000000000002' +
+            ccipRouter.address.slice(-40).toLowerCase(),
+          destTokenAmounts: []
+        })
+      );
+      const { events } = await tx.wait();
+      expect(events).to.have.lengthOf(1);
+      expect(events[0].event).to.eq('WinnerPropagated');
+      const prize = await manager.getRaffle(2);
+      expect(prize.raffleType).to.eq(2);
+      expect(prize.status).to.eq(0);
+      expect(prize.winner).to.eq(ccipRouter.address);
+    });
+
+    it('Fails to claim the ETH', async () => {
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).claimPrize(2)
+      )
+      await expect(tx).to.be.revertedWithCustomError(
+        manager,
+        'ETHTransferFail'
+      );
     });
   });
 
@@ -405,6 +691,10 @@ describe('CCIP Prize Manager', () => {
       const { raffleId, winner } = events[1].args;
       expect(raffleId).to.eq(3);
       expect(winner).to.eq(winnablesDeployer.address);
+      const prize = await manager.getRaffle(3);
+      expect(prize.raffleType).to.eq(3);
+      expect(prize.status).to.eq(1);
+      expect(prize.winner).to.eq(winnablesDeployer.address);
     });
   });
 
