@@ -8,6 +8,7 @@ interface IWinnablesTicketManager is IWinnables {
     error DuplicateRaffleID();
     error InvalidRaffleStatus();
     error InvalidTicketCount();
+    error RaffleWontDraw();
 
     event RafflePrizeLocked(bytes32 messageId, uint64 sourceChainSelector, uint256 raffleId);
 

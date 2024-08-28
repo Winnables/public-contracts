@@ -248,6 +248,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @param startsAt Epoch timestamp in seconds of the raffle start time
     /// @param endsAt Epoch timestamp in seconds of the raffle end time
     /// @param minTickets Minimum number of tickets required to be sold for this raffle
+    /// @param maxTickets Maximum number of tickets that can be sold for this raffle
     /// @param maxHoldings Maximum number of tickets one player can hold
     function createRaffle(
         uint256 raffleId,
@@ -260,6 +261,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         _checkRaffleTimings(startsAt, endsAt);
         if (maxTickets == 0) revert RaffleRequiresTicketSupplyCap();
         if (maxHoldings == 0) revert RaffleRequiresMaxHoldings();
+        if (minTickets > maxTickets) revert RaffleWontDraw();
         Raffle storage raffle = _raffles[raffleId];
         if (raffle.status != RaffleStatus.PRIZE_LOCKED) revert PrizeNotLocked();
 
