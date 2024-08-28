@@ -304,6 +304,11 @@ describe('CCIP Ticket Manager', () => {
       await snapshot.restore();
     });
 
+    it('Cannot unlock the prize as non-admin', async () => {
+      const tx = manager.connect(signers[1]).cancelRaffle(counterpartContractAddress, 1, 1);
+      await expect(tx).to.be.revertedWithCustomError(manager, 'MissingRole')
+    });
+
     it('Should unlock the prize', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
       const tx = await manager.cancelRaffle(counterpartContractAddress, 1, 1);
