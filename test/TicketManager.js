@@ -179,6 +179,20 @@ describe('CCIP Ticket Manager', () => {
       await expect(tx).to.be.revertedWithCustomError(manager, 'RaffleRequiresTicketSupplyCap');
     });
 
+    it('Cannot create a raffle with minTickets > maxTickets', async () => {
+      const now = await blockTime();
+      const tx = manager.createRaffle(
+        1,
+        now,
+        now + timeSeconds.hour,
+        501,
+        500,
+        100
+      );
+
+      await expect(tx).to.be.revertedWithCustomError(manager, 'RaffleWontDraw');
+    });
+
     it('Cannot create a raffle without max holdings', async () => {
       const now = await blockTime();
       const tx = manager.createRaffle(

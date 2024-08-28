@@ -114,7 +114,7 @@ describe('CCIP Prize Manager', () => {
   });
 
   it('Should be able to lock NFT prize with enough LINK', async () => {
-    await (await link.connect(signers[0]).mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
     const tx = await manager.connect(winnablesDeployer).lockNFT(
       counterpartContractAddress,
       1,
@@ -137,7 +137,7 @@ describe('CCIP Prize Manager', () => {
   });
 
   it('Should not be able to lock ETH prize with existing raffle ID', async () => {
-    await (await link.connect(signers[0]).mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
     const tx = manager.connect(winnablesDeployer).lockETH(
       counterpartContractAddress,
       1,
@@ -151,7 +151,7 @@ describe('CCIP Prize Manager', () => {
   });
 
   it('Should be able to lock ETH prize with enough LINK', async () => {
-    await (await link.connect(signers[0]).mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
     const tx = await manager.connect(winnablesDeployer).lockETH(
       counterpartContractAddress,
       1,
@@ -744,6 +744,10 @@ describe('CCIP Prize Manager', () => {
     after(async () => {
       await snapshot.restore();
     });
+    
+    it('Fund with LINK', async () => {
+      await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    });
 
     it('Create 2 raffles', async () => {
       const value = BigNumber.from(10).pow(18);
@@ -833,6 +837,10 @@ describe('CCIP Prize Manager', () => {
     });
     after(async () => {
       await snapshot.restore();
+    });
+
+    it('Fund with LINK', async () => {
+      await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
     });
 
     it('Create 2 ETH raffles', async () => {
