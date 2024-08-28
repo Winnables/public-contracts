@@ -299,10 +299,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @notice (Admin) Withdraw Link or any ERC20 tokens accidentally sent here
     /// @param tokenAddress Address of the token contract
     function withdrawTokens(address tokenAddress, uint256 amount) external onlyRole(0) {
-        IERC20 token = IERC20(tokenAddress);
-        uint256 balance = token.balanceOf(address(this));
-        if (amount < balance) revert InsufficientBalance();
-        token.safeTransfer(msg.sender, amount);
+        IERC20(tokenAddress).safeTransfer(msg.sender, amount);
     }
 
     /// @notice (Admin) Withdraw ETH from a canceled raffle or ticket sales

@@ -903,10 +903,11 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to withdraw more than balance of LINK', async () => {
-      await expect(manager.withdrawTokens(link.address, 100)).to.be.revertedWithCustomError(
-        manager,
-        'InsufficientBalance'
-      );
+      const balance = await link.balanceOf(manager.address);
+      await expect(manager.withdrawTokens(
+        link.address,
+        balance.add(10)
+      )).to.be.revertedWith('SafeERC20: low-level call failed');
     });
 
     it('Should not be able to withdraw tokens as non-admin', async () => {
@@ -914,6 +915,17 @@ describe('CCIP Ticket Manager', () => {
         manager,
         'MissingRole'
       );
+    });
+
+    it('Should be able to withdraw less than balance of LINK', async () => {
+      const balance = await link.balanceOf(manager.address);
+      const amountToWithdraw = balance.div(10);
+      const startingBalance = await link.balanceOf(signers[0].address);
+      const tx = await manager.connect(signers[0]).withdrawTokens(link.address, amountToWithdraw);
+      const { events } = await tx.wait();
+      expect(events).to.have.lengthOf(1);
+      expect(await link.balanceOf(manager.address)).to.eq(balance.sub(amountToWithdraw));
+      expect(await link.balanceOf(signers[0].address)).to.eq(startingBalance.add(amountToWithdraw));
     });
 
     it('Should be able to withdraw the balance of LINK', async () => {
