@@ -215,6 +215,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     function refundPlayers(uint256 raffleId, address[] calldata players) external {
         Raffle storage raffle = _raffles[raffleId];
         if (raffle.status != RaffleStatus.CANCELED) revert InvalidRaffle();
+        uint256 totalRefunded = 0;
         for (uint256 i = 0; i < players.length; ) {
             address player = players[i];
             uint256 participation = uint256(raffle.participations[player]);
@@ -223,7 +224,13 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
             uint256 amountToSend = (participation & type(uint128).max);
             _sendETH(amountToSend, player);
             emit PlayerRefund(raffleId, player, bytes32(participation));
-            unchecked { ++i; }
+            unchecked {
+                totalRefunded += amountToSend;
+                ++i;
+            }
+        }
+        unchecked {
+            _lockedETH -= totalRefunded;
         }
     }
 
