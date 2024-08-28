@@ -581,6 +581,54 @@ describe('CCIP Ticket Manager', () => {
         'PlayerAlreadyRefunded'
       );
     });
+
+    it('For the next non-cancelled raffle, admin can withdraw the funds', async () => {
+      const now = await blockTime();
+      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
+      const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x0000000000000000000000000000000000000000000000000000000000000002',
+          destTokenAmounts: []
+        })
+      );
+      await tx.wait();
+      await (await manager.createRaffle(
+        2,
+        now,
+        now + timeSeconds.hour,
+        50,
+        500,
+        10
+      )).wait();
+
+      for (let i = 0; i < 50; i++) {
+        const buyer = await getWalletWithEthers();
+        const currentBlock = await ethers.provider.getBlockNumber();
+        const sig = await api.signMessage(ethers.utils.arrayify(
+          ethers.utils.solidityKeccak256(['address', 'uint256', 'uint256', 'uint16', 'uint256', 'uint256'], [
+            buyer.address,
+            0,
+            2,
+            10,
+            currentBlock + 10,
+            100
+          ])
+        ));
+        await (await manager.connect(buyer).buyTickets(2, 10, currentBlock + 10, sig, { value: 100 })).wait();
+      }
+
+      await (await manager.drawWinner(2)).wait();
+      await (await coordinator.fulfillRandomWordsWithOverride(1, manager.address, [randomWord()])).wait();
+      await (await manager.propagateRaffleWinner(counterpartContractAddress, 1, 2)).wait();
+      const balanceBefore = await ethers.provider.getBalance(signers[0].address);
+      const receipt = await (await manager.withdrawETH()).wait();
+      const gas = receipt.cumulativeGasUsed.mul(receipt.effectiveGasPrice);
+      const balanceAfter = await ethers.provider.getBalance(signers[0].address);
+      expect(balanceAfter).to.eq(balanceBefore.add(5000).sub(gas));
+    });
   });
 
   describe('Successful raffle flow', () => {
