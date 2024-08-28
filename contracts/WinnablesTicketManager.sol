@@ -435,7 +435,10 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
     function _checkShouldCancel(uint256 raffleId) internal view {
         Raffle storage raffle = _raffles[raffleId];
-        if (raffle.status == RaffleStatus.PRIZE_LOCKED) return;
+        if (raffle.status == RaffleStatus.PRIZE_LOCKED) {
+            _checkRole(msg.sender, 0);
+            return;
+        }
         if (raffle.status != RaffleStatus.IDLE) revert InvalidRaffle();
         if (raffle.endsAt > block.timestamp) revert RaffleIsStillOpen();
         uint256 supply = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
