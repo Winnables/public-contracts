@@ -38,6 +38,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @dev Nonces used in the signature that allows ticket sales to avoid signature reuse
     mapping(address => uint256) private _userNonces;
 
+    /// @dev request confirmations to pass when requesting randomness for drawing winner 
+    uint16 private _vrfRequestConfirmations = 3;
+
     /// @dev ETH locked in the contract because it might be needed for a refund
     uint256 private _lockedETH;
 
@@ -321,7 +324,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         uint256 requestId = VRFCoordinatorV2Interface(VRF_COORDINATOR).requestRandomWords(
             KEY_HASH,
             SUBSCRIPTION_ID,
-            3,
+            _vrfRequestConfirmations,
             100_000,
             1
         );
@@ -492,5 +495,11 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         if (amount == 0) revert NothingToSend();
         (bool success, ) = to.call{ value: amount }("");
         if (!success) revert ETHTransferFail();
+    }
+
+    /// @dev setter for _vrfRequestConfirmations
+    /// @param newRequestConfirmations
+    function setRequestConfirmations(uint16 newRequestConfirmations) external onlyRole(0) {
+        _vrfRequestConfirmations = newRequestConfirmations;
     }
 }
