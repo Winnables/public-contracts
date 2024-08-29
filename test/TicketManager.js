@@ -48,6 +48,7 @@ describe('CCIP Ticket Manager', () => {
     const goodReceiverFactory = await ethers.getContractFactory('ERC1155Receiver');
     badReceiver = await badReceiverFactory.deploy();
     goodReceiver = await goodReceiverFactory.deploy();
+    await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
   });
 
   it('Initializes correctly', async () => {
@@ -100,19 +101,6 @@ describe('CCIP Ticket Manager', () => {
     await expect(tx).to.be.revertedWithCustomError(manager, 'InvalidRouter');
   });
 
-  it('Should not accept prize locked notification from unauthorized source', async () => {
-    const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
-      manager.connect(signer).ccipReceive({
-        messageId: ethers.constants.HashZero,
-        sourceChainSelector: 1,
-        sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
-        data: '0x000000000000000000000000000000000000000000000000000000000000000001',
-        destTokenAmounts: []
-      })
-    );
-    await expect(tx).to.be.revertedWithCustomError(manager, 'UnauthorizedCCIPSender');
-  });
-
   it('Should not be able to set CCIP Counterpart if not admin', async () => {
     await expect(manager.connect(signers[2]).setCCIPCounterpart(
       counterpartContractAddress,
@@ -124,8 +112,33 @@ describe('CCIP Ticket Manager', () => {
     )
   });
 
+  it('Should not accept prize locked notification from unauthorized contract', async () => {
+    const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+      manager.connect(signer).ccipReceive({
+        messageId: ethers.constants.HashZero,
+        sourceChainSelector: 1,
+        sender: '0x' + signers[2].address.slice(-40).padStart(64, '0'),
+        data: '0x000000000000000000000000000000000000000000000000000000000000000001',
+        destTokenAmounts: []
+      })
+    );
+    await expect(tx).to.be.revertedWithCustomError(manager, 'UnauthorizedCCIPSender');
+  });
+
+  it('Should not accept prize locked notification from unauthorized chain', async () => {
+    const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+      manager.connect(signer).ccipReceive({
+        messageId: ethers.constants.HashZero,
+        sourceChainSelector: 2,
+        sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+        data: '0x000000000000000000000000000000000000000000000000000000000000000001',
+        destTokenAmounts: []
+      })
+    );
+    await expect(tx).to.be.revertedWithCustomError(manager, 'UnauthorizedCCIPSender');
+  });
+
   it('Should notify when the prize is locked', async () => {
-    await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
     const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
       manager.connect(signer).ccipReceive({
         messageId: ethers.constants.HashZero,
@@ -584,7 +597,6 @@ describe('CCIP Ticket Manager', () => {
 
     it('For the next non-cancelled raffle, admin can withdraw the funds', async () => {
       const now = await blockTime();
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -939,7 +951,6 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Sends prize unlock message when receiving prize locked for an existing raffle', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
@@ -956,7 +967,6 @@ describe('CCIP Ticket Manager', () => {
     })
 
     it('Early sold-out raffle', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
