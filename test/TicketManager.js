@@ -419,6 +419,26 @@ describe('CCIP Ticket Manager', () => {
       )
     });
 
+    it('Cannot buy more than MAX tickets', async () => {
+      buyer1 = await getWalletWithEthers();
+      const currentBlock = await ethers.provider.getBlockNumber();
+      const sig = await api.signMessage(ethers.utils.arrayify(
+        ethers.utils.solidityKeccak256(['address', 'uint256', 'uint256', 'uint16', 'uint256', 'uint256'], [
+          buyer1.address,
+          0,
+          1,
+          3001,
+          currentBlock + 10,
+          0
+        ])
+      ));
+      const tx = manager.connect(buyer1).buyTickets(1, 3001, currentBlock + 10, sig);
+      await expect(tx).to.be.revertedWithCustomError(
+        manager,
+        'MaxTicketExceed'
+      );
+    });
+
     it('Cannot buy zero tickets', async () => {
       buyer1 = await getWalletWithEthers();
       const currentBlock = await ethers.provider.getBlockNumber();
