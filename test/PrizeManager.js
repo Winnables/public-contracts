@@ -11,7 +11,7 @@ const {BigNumber} = require('ethers');
 
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
-describe.only('CCIP Prize Manager', () => {
+describe('CCIP Prize Manager', () => {
   let ccipRouter;
   let link;
   let signers;
@@ -110,7 +110,7 @@ describe.only('CCIP Prize Manager', () => {
 
     const tx = await nft.connect(signers[0])[safeTransferFrom](signers[0].address, manager.address, 2);
     const { events } = await tx.wait();
-    
+
     const transferFevent = nft.interface.parseLog(events[0]);
     expect(transferFevent.name).to.eq('Transfer');
   });
