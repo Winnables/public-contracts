@@ -11,5 +11,6 @@ module.exports = {
     'mock/TetherToken.sol',
     'mock/VRFCoordinatorV2BetterMock.sol',
     'mock/VRFV2Wrapper.sol',
+    'mock/MockBadLink.sol',
   ]
 }

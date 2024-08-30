@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
 import "./Roles.sol";
 import "./interfaces/IWinnablesTicketManager.sol";
@@ -55,13 +54,11 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         bytes32 _keyHash,
         address _tickets,
         address _ccipRouter
-    ) VRFConsumerBaseV2(_vrfCoordinator) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken) {
+    ) VRFConsumerBaseV2(_vrfCoordinator) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken, _ccipRouter) {
         VRF_COORDINATOR = _vrfCoordinator;
         SUBSCRIPTION_ID = _subscriptionId;
         KEY_HASH = _keyHash;
         TICKETS_CONTRACT = _tickets;
-        _setRole(msg.sender, 0, true); // Deployer is admin by default
-        LinkTokenInterface(LINK_TOKEN).approve(_ccipRouter, type(uint256).max);
     }
 
     // =============================================================
@@ -429,9 +426,10 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         Raffle storage raffle = _raffles[raffleId];
         if (raffle.status != RaffleStatus.IDLE) revert InvalidRaffle();
         uint256 currentTicketSold = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
-        if (currentTicketSold == 0) revert NoParticipants();
-
-        if (block.timestamp < raffle.endsAt) {
+        if (currentTicketSold == 0) {
+            revert NoParticipants();
+        }
+        if (block.timestamp <= raffle.endsAt) {
             if (currentTicketSold < raffle.maxTicketSupply) revert RaffleIsStillOpen();
         }
         if (currentTicketSold < raffle.minTicketsThreshold) revert TargetTicketsNotReached();
@@ -443,10 +441,16 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
             _checkRole(msg.sender, 0);
             return;
         }
-        if (raffle.status != RaffleStatus.IDLE) revert InvalidRaffle();
-        if (raffle.endsAt > block.timestamp) revert RaffleIsStillOpen();
+        if (raffle.status != RaffleStatus.IDLE) {
+            revert InvalidRaffle();
+        }
+        if (block.timestamp <= raffle.endsAt) {
+            revert RaffleIsStillOpen();
+        }
         uint256 supply = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
-        if (supply > raffle.minTicketsThreshold) revert TargetTicketsReached();
+        if (supply > raffle.minTicketsThreshold) {
+            revert TargetTicketsReached();
+        }
     }
 
     /// @dev Checks the validity of a signature to allow the purchase of tickets at a given price
