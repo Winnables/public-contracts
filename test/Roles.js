@@ -1,13 +1,5 @@
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
-const helpers = require('@nomicfoundation/hardhat-network-helpers');
-const {
-  getWalletWithEthers,
-} = require('./common/utils');
-const { ccipDeployPrizeManager} = require('../utils/demo');
-const { whileImpersonating } = require('../utils/impersonate');
-const exp = require('node:constants');
-const {BigNumber} = require('ethers');
 
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
