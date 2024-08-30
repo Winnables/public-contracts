@@ -11,7 +11,7 @@ const {BigNumber} = require('ethers');
 
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
-describe('CCIP Prize Manager', () => {
+describe.only('CCIP Prize Manager', () => {
   let ccipRouter;
   let link;
   let signers;
@@ -100,6 +100,14 @@ describe('CCIP Prize Manager', () => {
       nft.address,
       1
     )).to.be.revertedWithCustomError(manager, 'InsufficientLinkBalance');
+  });
+
+  it('Can receive NFT using safeTransferFrom', async () => {
+    await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
+    const tx = await nft.safeTransferFrom(signers[0].address, manager.address, 1);
+
+    const { events } = await tx.wait();
+    console.log('events', events);
   });
 
   it('Cannot create Raffle #0', async () => {
