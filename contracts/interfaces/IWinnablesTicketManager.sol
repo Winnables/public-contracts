@@ -5,7 +5,6 @@ import "./IWinnables.sol";
 
 interface IWinnablesTicketManager is IWinnables {
     error PrizeNotLocked();
-    error DuplicateRaffleID();
     error InvalidRaffleStatus();
     error InvalidTicketCount();
     error RaffleWontDraw();
