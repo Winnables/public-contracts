@@ -426,9 +426,10 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         Raffle storage raffle = _raffles[raffleId];
         if (raffle.status != RaffleStatus.IDLE) revert InvalidRaffle();
         uint256 currentTicketSold = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
-        if (currentTicketSold == 0) revert NoParticipants();
-
-        if (block.timestamp < raffle.endsAt) {
+        if (currentTicketSold == 0) {
+            revert NoParticipants();
+        }
+        if (block.timestamp <= raffle.endsAt) {
             if (currentTicketSold < raffle.maxTicketSupply) revert RaffleIsStillOpen();
         }
         if (currentTicketSold < raffle.minTicketsThreshold) revert TargetTicketsNotReached();
@@ -440,10 +441,16 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
             _checkRole(msg.sender, 0);
             return;
         }
-        if (raffle.status != RaffleStatus.IDLE) revert InvalidRaffle();
-        if (raffle.endsAt > block.timestamp) revert RaffleIsStillOpen();
+        if (raffle.status != RaffleStatus.IDLE) {
+            revert InvalidRaffle();
+        }
+        if (block.timestamp <= raffle.endsAt) {
+            revert RaffleIsStillOpen();
+        }
         uint256 supply = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
-        if (supply > raffle.minTicketsThreshold) revert TargetTicketsReached();
+        if (supply > raffle.minTicketsThreshold) {
+            revert TargetTicketsReached();
+        }
     }
 
     /// @dev Checks the validity of a signature to allow the purchase of tickets at a given price
