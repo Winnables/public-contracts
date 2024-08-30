@@ -13,8 +13,6 @@ import "./BaseCCIPReceiver.sol";
 import "./interfaces/IWinnables.sol";
 import "./interfaces/IWinnablesPrizeManager.sol";
 
-import "hardhat/console.sol";
-
 contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinnablesPrizeManager {
     using SafeERC20 for IERC20;
 
@@ -49,10 +47,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     constructor(
         address _linkToken,
         address _ccipRouter
-    ) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken) {
-        _setRole(msg.sender, 0, true); // Deployer is admin by default
-        LinkTokenInterface(LINK_TOKEN).approve(_ccipRouter, type(uint256).max);
-    }
+    ) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken, _ccipRouter) {}
 
     // =============================================================
     // -- Public functions

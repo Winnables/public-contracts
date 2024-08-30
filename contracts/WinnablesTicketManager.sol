@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
 import "./Roles.sol";
 import "./interfaces/IWinnablesTicketManager.sol";
@@ -55,13 +54,11 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         bytes32 _keyHash,
         address _tickets,
         address _ccipRouter
-    ) VRFConsumerBaseV2(_vrfCoordinator) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken) {
+    ) VRFConsumerBaseV2(_vrfCoordinator) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken, _ccipRouter) {
         VRF_COORDINATOR = _vrfCoordinator;
         SUBSCRIPTION_ID = _subscriptionId;
         KEY_HASH = _keyHash;
         TICKETS_CONTRACT = _tickets;
-        _setRole(msg.sender, 0, true); // Deployer is admin by default
-        LinkTokenInterface(LINK_TOKEN).approve(_ccipRouter, type(uint256).max);
     }
 
     // =============================================================

@@ -19,6 +19,10 @@ contract Roles {
         _;
     }
 
+    constructor() {
+        _setRole(msg.sender, 0, true);
+    }
+
     function _hasRole(address user, uint8 role) internal view returns(bool) {
         return _addressRoles[user].getBool(role);
     }
