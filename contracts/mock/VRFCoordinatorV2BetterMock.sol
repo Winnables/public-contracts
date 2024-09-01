@@ -13,6 +13,8 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
     uint96 public immutable GAS_PRICE_LINK;
     uint16 public immutable MAX_CONSUMERS = 100;
 
+    uint16 private _minConfirmations;
+
     error InvalidSubscription();
     error InsufficientBalance();
     error MustBeSubOwner(address owner);
@@ -165,6 +167,10 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
     ) external override onlyValidConsumer(_subId, msg.sender) returns (uint256) {
         if (s_subscriptions[_subId].owner == address(0)) {
             revert InvalidSubscription();
+        }
+
+        if (_minimumRequestConfirmations < _minConfirmations) {
+
         }
 
         uint256 requestId = s_nextRequestId++;
