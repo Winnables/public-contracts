@@ -14,7 +14,7 @@ import "./BaseCCIPReceiver.sol";
 import "./interfaces/IWinnables.sol";
 import "./interfaces/IWinnablesPrizeManager.sol";
 
-contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinnablesPrizeManager {
+contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinnablesPrizeManager, IERC721Receiver {
     using SafeERC20 for IERC20;
 
     error UnauthorizedToClaim();
