@@ -13,6 +13,8 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
     uint96 public immutable GAS_PRICE_LINK;
     uint16 public immutable MAX_CONSUMERS = 100;
 
+    uint16 private _minConfirmations = 3;
+
     error InvalidSubscription();
     error InsufficientBalance();
     error MustBeSubOwner(address owner);
@@ -21,6 +23,7 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
     error InvalidRandomWords();
     error OnlyCallableFromLink();
     error InvalidCalldata();
+    error InvalidRequestConfirmations(uint16 have, uint16 min, uint16 max);
 
     event RandomWordsRequested(
         bytes32 indexed keyHash,
@@ -167,6 +170,14 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
             revert InvalidSubscription();
         }
 
+        if (_minimumRequestConfirmations < _minConfirmations) {
+            revert InvalidRequestConfirmations(
+                _minimumRequestConfirmations,
+                _minConfirmations,
+                200
+            );
+        }
+
         uint256 requestId = s_nextRequestId++;
         uint256 preSeed = s_nextPreSeed++;
 
@@ -309,6 +320,10 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         0,
         0
         );
+    }
+
+    function configRequestConfirmations(uint16 newValue) external {
+        _minConfirmations = newValue;
     }
 
     function getFallbackWeiPerUnitLink() external view returns (int256) {

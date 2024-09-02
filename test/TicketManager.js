@@ -1117,6 +1117,19 @@ describe('CCIP Ticket Manager', () => {
       await expect(tx).to.be.revertedWithCustomError(manager, 'RequestNotFound');
     });
 
+    it('Should not be able to request randomness with less than minimum confirmation', async () => {
+      await (await coordinator.configRequestConfirmations(5)).wait();
+      await expect(manager.drawWinner(1)).to.be.revertedWithCustomError(coordinator, 'InvalidRequestConfirmations');
+    });
+
+    it('Should not be able to configure request confirmations as non-admin', async () => {
+      await expect(manager.connect(signers[1]).setRequestConfirmations(7)).to.be.revertedWithCustomError(manager, 'MissingRole');
+    });
+
+    it('Should be able to configure request confirmations', async () => {
+      await (await manager.setRequestConfirmations(7)).wait();
+    });
+
     it('Should be able to draw the winner', async () => {
       expect(await manager.shouldDrawRaffle(1)).to.eq(true);
       const tx = await manager.drawWinner(1);
