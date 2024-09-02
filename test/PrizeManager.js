@@ -102,6 +102,19 @@ describe('CCIP Prize Manager', () => {
     )).to.be.revertedWithCustomError(manager, 'InsufficientLinkBalance');
   });
 
+  it('Can receive NFT using safeTransferFrom', async () => {
+    const safeTransferFrom = 'safeTransferFrom(address,address,uint256)';
+
+    await (await nft.mint(signers[0].address)).wait();
+    await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
+
+    const tx = await nft.connect(signers[0])[safeTransferFrom](signers[0].address, manager.address, 2);
+    const { events } = await tx.wait();
+
+    const transferFevent = nft.interface.parseLog(events[0]);
+    expect(transferFevent.name).to.eq('Transfer');
+  });
+
   it('Cannot create Raffle #0', async () => {
     const tx = manager.lockNFT(
       counterpartContractAddress,
