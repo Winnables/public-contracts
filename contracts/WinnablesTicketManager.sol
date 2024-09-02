@@ -17,6 +17,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     using SafeERC20 for IERC20;
 
     uint256 constant internal MIN_RAFFLE_DURATION = 60;
+    uint256 constant internal MAX_TICKET_PURCHASABLE = 3_000;
 
     address immutable internal VRF_COORDINATOR;
     address immutable private TICKETS_CONTRACT;
@@ -408,6 +409,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @param ticketCount Number of tickets to be sold
     function _checkTicketPurchaseable(uint256 raffleId, uint256 ticketCount) internal view {
         Raffle storage raffle = _raffles[raffleId];
+        if (ticketCount > MAX_TICKET_PURCHASABLE) revert MaxTicketExceed();
         if (raffle.startsAt > block.timestamp) revert RaffleHasNotStarted();
         if (raffle.status != RaffleStatus.IDLE) revert RaffleHasEnded();
         if (block.timestamp > raffle.endsAt) revert RaffleHasEnded();
