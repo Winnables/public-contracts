@@ -43,6 +43,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @dev ETH locked in the contract because it might be needed for a refund
     uint256 private _lockedETH;
 
+    /// @dev extraArgs for ccip message
+    bytes private _ccipExtraArgs = "";
+
     /// @dev Contract constructor
     /// @param _linkToken Address of the LINK ERC20 token on the chain you are deploying to
     /// @param _vrfCoordinator Address of the Chainlink VRFCoordinator contract on the chain you are deploying to
@@ -291,7 +294,8 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         _sendCCIPMessage(
             prizeManager,
             chainSelector,
-            abi.encodePacked(uint8(CCIPMessageType.RAFFLE_CANCELED), raffleId)
+            abi.encodePacked(uint8(CCIPMessageType.RAFFLE_CANCELED), raffleId),
+            _ccipExtraArgs
         );
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
     }
@@ -343,7 +347,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         raffle.status = RaffleStatus.PROPAGATED;
         address winner = _getWinnerByRequestId(raffle.chainlinkRequestId);
 
-        _sendCCIPMessage(prizeManager, chainSelector, abi.encodePacked(uint8(CCIPMessageType.WINNER_DRAWN), raffleId, winner));
+        _sendCCIPMessage(prizeManager, chainSelector, abi.encodePacked(uint8(CCIPMessageType.WINNER_DRAWN), raffleId, winner), _ccipExtraArgs);
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
         unchecked {
             _lockedETH -= raffle.totalRaised;
@@ -380,7 +384,8 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
             _sendCCIPMessage(
                 _senderAddress,
                 message.sourceChainSelector,
-                abi.encodePacked(uint8(CCIPMessageType.RAFFLE_CANCELED), raffleId)
+                abi.encodePacked(uint8(CCIPMessageType.RAFFLE_CANCELED), raffleId),
+                _ccipExtraArgs
             );
             return;
         }
@@ -506,5 +511,11 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @param newRequestConfirmations New value for VRF Request Confirmations
     function setRequestConfirmations(uint16 newRequestConfirmations) external onlyRole(0) {
         _vrfRequestConfirmations = newRequestConfirmations;
+    }
+
+    /// @notice (Admin) Use this to set extraArgs for ccip message
+    /// @param newExtraArgs new extraArgs to set
+    function setCcipExtraArgs(bytes memory newExtraArgs) external onlyRole(0) {
+        _ccipExtraArgs = newExtraArgs;
     }
 }

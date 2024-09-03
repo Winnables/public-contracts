@@ -15,7 +15,8 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
     function _sendCCIPMessage(
         address ccipDestAddress,
         uint64 ccipDestChainSelector,
-        bytes memory data
+        bytes memory data,
+        bytes memory ccipExtraArgs
     ) internal returns(bytes32 messageId) {
         if (ccipDestAddress == address(0) || ccipDestChainSelector == uint64(0)) {
             revert MissingCCIPParams();
@@ -29,7 +30,7 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
             receiver: abi.encode(ccipDestAddress),
             data: data,
             tokenAmounts: new Client.EVMTokenAmount[](0),
-            extraArgs: "",
+            extraArgs: ccipExtraArgs,
             feeToken: LINK_TOKEN
         });
 
