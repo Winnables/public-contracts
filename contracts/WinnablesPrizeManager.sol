@@ -144,7 +144,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         uint256 raffleId,
         address nft,
         uint256 tokenId
-    ) external onlyRole(0) {
+    ) external onlyRole(0) returns(bytes32 messageId) {
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         if (IERC721(nft).ownerOf(tokenId) != address(this)) revert InvalidPrize();
         if (_nftLocked[nft][tokenId]) revert InvalidPrize();
@@ -153,7 +153,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         _nftRaffles[raffleId].contractAddress = nft;
         _nftRaffles[raffleId].tokenId = tokenId;
 
-        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
+        messageId = _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
         emit NFTPrizeLocked(raffleId, nft, tokenId);
     }
 
@@ -167,7 +167,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         uint64 chainSelector,
         uint256 raffleId,
         uint256 amount
-    ) external payable onlyRole(0) {
+    ) external payable onlyRole(0) returns(bytes32 messageId){
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         uint256 ethBalance = address(this).balance;
 
@@ -176,7 +176,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         _ethLocked += amount;
         _ethRaffles[raffleId] = amount;
 
-        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
+        messageId = _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
         emit ETHPrizeLocked(raffleId, amount);
     }
 
@@ -192,7 +192,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         uint256 raffleId,
         address token,
         uint256 amount
-    ) external onlyRole(0) {
+    ) external onlyRole(0) returns(bytes32 messageId) {
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         uint256 tokenBalance = IERC20(token).balanceOf(address(this));
         if (tokenBalance < amount + _tokensLocked[token]) revert InvalidPrize();
@@ -201,7 +201,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         _tokenRaffles[raffleId].tokenAddress = token;
         _tokenRaffles[raffleId].amount = amount;
 
-        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
+        messageId = _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
         emit TokenPrizeLocked(raffleId, token, amount);
     }
 
