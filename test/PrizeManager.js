@@ -4,7 +4,7 @@ const helpers = require('@nomicfoundation/hardhat-network-helpers');
 const {
   getWalletWithEthers,
 } = require('./common/utils');
-const { ccipDeployPrizeManager} = require('../utils/demo');
+const { ccipDeployPrizeManager } = require('../utils/demo');
 const { whileImpersonating } = require('../utils/impersonate');
 const { BigNumber } = require('ethers');
 
@@ -512,6 +512,11 @@ describe('CCIP Prize Manager', () => {
       const { events } = await tx.wait();
       expect(events).to.have.lengthOf(1);
       expect(events[0].event).to.eq('PrizeUnlocked');
+    });
+
+    it('Can not withdraw the tokens with withdrawNFT', async () => {
+      await expect(manager.withdrawNFT(token.address, 1))
+        .to.be.revertedWithCustomError(manager, 'NoNFTToken');
     });
 
     it('Can withdraw the Tokens now', async () => {

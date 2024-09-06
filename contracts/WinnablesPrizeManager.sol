@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -221,6 +222,10 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     /// @param tokenId ID of the NFT
     function withdrawNFT(address nft, uint256 tokenId) external onlyRole(0) {
         if (_nftLocked[nft][tokenId]) revert NFTLocked();
+
+        try ERC721(nft).tokenURI(tokenId) returns (string memory) {} catch {
+            revert NoNFTToken(nft, tokenId);
+        }
         IERC721(nft).transferFrom(address(this), msg.sender, tokenId);
     }
 
