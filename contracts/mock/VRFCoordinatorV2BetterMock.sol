@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // A mock for testing code that relies on VRFCoordinatorV2.
-pragma solidity ^0.8.4;
+pragma solidity 0.8.24;
 
-import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/ERC677ReceiverInterface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
+import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
+// import "@chainlink/contracts/src/v0.8/vrf/interfaces/ERC677ReceiverInterface.sol";
+import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
-contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677ReceiverInterface {
+// ERC677ReceiverInterface
+contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface {
     LinkTokenInterface public immutable LINK;
     uint96 public immutable BASE_FEE;
     uint96 public immutable GAS_PRICE_LINK;
@@ -29,31 +31,31 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         bytes32 indexed keyHash,
         uint256 requestId,
         uint256 preSeed,
-        uint64 indexed subId,
+        uint256 indexed subId,
         uint16 minimumRequestConfirmations,
         uint32 callbackGasLimit,
         uint32 numWords,
         address indexed sender
     );
     event RandomWordsFulfilled(uint256 indexed requestId, uint256 outputSeed, uint96 payment, bool success);
-    event SubscriptionCreated(uint64 indexed subId, address owner);
-    event SubscriptionFunded(uint64 indexed subId, uint256 oldBalance, uint256 newBalance);
-    event SubscriptionCanceled(uint64 indexed subId, address to, uint256 amount);
-    event ConsumerAdded(uint64 indexed subId, address consumer);
-    event ConsumerRemoved(uint64 indexed subId, address consumer);
+    event SubscriptionCreated(uint256 indexed subId, address owner);
+    event SubscriptionFunded(uint256 indexed subId, uint256 oldBalance, uint256 newBalance);
+    event SubscriptionCanceled(uint256 indexed subId, address to, uint256 amount);
+    event ConsumerAdded(uint256 indexed subId, address consumer);
+    event ConsumerRemoved(uint256 indexed subId, address consumer);
 
-    uint64 s_currentSubId;
+    uint256 s_currentSubId;
     uint256 s_nextRequestId = 1;
     uint256 s_nextPreSeed = 100;
     struct Subscription {
         address owner;
         uint96 balance;
     }
-    mapping(uint64 => Subscription) s_subscriptions; /* subId */ /* subscription */
-    mapping(uint64 => address[]) s_consumers; /* subId */ /* consumers */
+    mapping(uint256 => Subscription) s_subscriptions; /* subId */ /* subscription */
+    mapping(uint256 => address[]) s_consumers; /* subId */ /* consumers */
 
     struct Request {
-        uint64 subId;
+        uint256 subId;
         uint32 callbackGasLimit;
         uint32 numWords;
     }
@@ -65,7 +67,7 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         GAS_PRICE_LINK = _gasPriceLink;
     }
 
-    function consumerIsAdded(uint64 _subId, address _consumer) public view returns (bool) {
+    function consumerIsAdded(uint256 _subId, address _consumer) public view returns (bool) {
         address[] memory consumers = s_consumers[_subId];
         for (uint256 i = 0; i < consumers.length; i++) {
             if (consumers[i] == _consumer) {
@@ -75,7 +77,7 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         return false;
     }
 
-    modifier onlyValidConsumer(uint64 _subId, address _consumer) {
+    modifier onlyValidConsumer(uint256 _subId, address _consumer) {
         if (!consumerIsAdded(_subId, _consumer)) {
             revert InvalidConsumer();
         }
@@ -148,7 +150,7 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         if (data.length != 32) {
             revert InvalidCalldata();
         }
-        uint64 subId = abi.decode(data, (uint64));
+        uint256 subId = abi.decode(data, (uint256));
         if (s_subscriptions[subId].owner == address(0)) {
             revert InvalidSubscription();
         }
@@ -160,11 +162,12 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
     }
 
     function requestRandomWords(
-        bytes32 _keyHash,
-        uint64 _subId,
-        uint16 _minimumRequestConfirmations,
-        uint32 _callbackGasLimit,
-        uint32 _numWords
+        VRFV2PlusClient.RandomWordsRequest request
+        // bytes32 _keyHash,
+        // uint256 _subId,
+        // uint16 _minimumRequestConfirmations,
+        // uint32 _callbackGasLimit,
+        // uint32 _numWords
     ) external override onlyValidConsumer(_subId, msg.sender) returns (uint256) {
         if (s_subscriptions[_subId].owner == address(0)) {
             revert InvalidSubscription();
@@ -196,20 +199,20 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         return requestId;
     }
 
-    function createSubscription() external override returns (uint64 _subId) {
+    function createSubscription() external override returns (uint256 _subId) {
         s_currentSubId++;
         s_subscriptions[s_currentSubId] = Subscription({owner: msg.sender, balance: 0});
         emit SubscriptionCreated(s_currentSubId, msg.sender);
         return s_currentSubId;
     }
 
-    function getSubscription(uint64 _subId)
+    function getSubscription(uint256 _subId)
     external
     view
     override
     returns (
         uint96 balance,
-        uint64 reqCount,
+        uint256 reqCount,
         address owner,
         address[] memory consumers
     )
@@ -220,12 +223,12 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         return (s_subscriptions[_subId].balance, 0, s_subscriptions[_subId].owner, s_consumers[_subId]);
     }
 
-    function cancelSubscription(uint64 _subId, address _to) external override onlySubOwner(_subId) {
+    function cancelSubscription(uint256 _subId, address _to) external override onlySubOwner(_subId) {
         emit SubscriptionCanceled(_subId, _to, s_subscriptions[_subId].balance);
         delete (s_subscriptions[_subId]);
     }
 
-    modifier onlySubOwner(uint64 _subId) {
+    modifier onlySubOwner(uint256 _subId) {
         address owner = s_subscriptions[_subId].owner;
         if (owner == address(0)) {
             revert InvalidSubscription();
@@ -249,7 +252,7 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         return (3, 2000000, new bytes32[](0));
     }
 
-    function addConsumer(uint64 _subId, address _consumer) external override onlySubOwner(_subId) {
+    function addConsumer(uint256 _subId, address _consumer) external override onlySubOwner(_subId) {
         if (s_consumers[_subId].length == MAX_CONSUMERS) {
             revert TooManyConsumers();
         }
@@ -262,7 +265,7 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         emit ConsumerAdded(_subId, _consumer);
     }
 
-    function removeConsumer(uint64 _subId, address _consumer)
+    function removeConsumer(uint256 _subId, address _consumer)
     external
     override
     onlySubOwner(_subId)
@@ -330,15 +333,15 @@ contract VRFCoordinatorV2BetterMock is VRFCoordinatorV2Interface, ERC677Receiver
         return 4000000000000000; // 0.004 Ether
     }
 
-    function requestSubscriptionOwnerTransfer(uint64 _subId, address _newOwner) external pure override {
+    function requestSubscriptionOwnerTransfer(uint256 _subId, address _newOwner) external pure override {
         revert("not implemented");
     }
 
-    function acceptSubscriptionOwnerTransfer(uint64 _subId) external pure override {
+    function acceptSubscriptionOwnerTransfer(uint256 _subId) external pure override {
         revert("not implemented");
     }
 
-    function pendingRequestExists(uint64 subId) public view override returns (bool) {
+    function pendingRequestExists(uint256 subId) public view override returns (bool) {
         revert("not implemented");
     }
 }
