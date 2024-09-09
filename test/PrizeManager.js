@@ -7,7 +7,7 @@ const {
 const { ccipDeployPrizeManager} = require('../utils/demo');
 const { whileImpersonating } = require('../utils/impersonate');
 const exp = require('node:constants');
-const {BigNumber} = require('ethers');
+const {BigNumber, constants} = require('ethers');
 
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
@@ -100,6 +100,20 @@ describe('CCIP Prize Manager', () => {
       nft.address,
       1
     )).to.be.revertedWithCustomError(manager, 'InsufficientLinkBalance');
+  });
+
+  it('Should not be able to lock LINK as token prize', async () => {
+    await (await link.connect(winnablesDeployer).mint(manager.address, ethers.utils.parseEther('1'))).wait();
+
+    await expect(manager.connect(winnablesDeployer).lockTokens(
+      counterpartContractAddress,
+      1,
+      1,
+      link.address,
+      100
+    )).to.be.revertedWithCustomError(manager, 'LINKTokenNotPermitted');
+
+    await (await manager.connect(winnablesDeployer).withdrawToken(link.address, constants.AddressZero)).wait();
   });
 
   it('Can receive NFT using safeTransferFrom', async () => {
@@ -232,41 +246,6 @@ describe('CCIP Prize Manager', () => {
       1
     );
     await expect(tx).to.be.revertedWithCustomError(manager, 'InvalidPrize');
-  });
-
-  it('Stealing locked tokens', async () => {
-    //mint some LINK
-    await (await link.connect(winnablesDeployer).mint(manager.address, ethers.utils.parseEther('100'))).wait();
-    await (await token.connect(winnablesDeployer).mint(winnablesDeployer.address, 100)).wait();
-    //send some LINK
-    await (await link.transfer(manager.address, 100)).wait();
-
-    const linkBalance = await link.balanceOf(manager.address);
-    //lock LINK tokens for the raffle
-    const tx = await manager.connect(winnablesDeployer).lockTokens(
-      counterpartContractAddress,
-      1,
-      30,
-      link.address,
-      linkBalance
-    );
-    const { events } = await tx.wait();
-    const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
-    expect(ccipMessageEvent.name).to.eq('MockCCIPMessageEvent');
-    await expect(manager.getNFTRaffle(30)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
-    await expect(manager.getETHRaffle(30)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
-    const tokenInfo = await manager.getTokenRaffle(30);
-    expect(tokenInfo.tokenAddress).to.eq(link.address);
-    expect(tokenInfo.amount).to.eq(linkBalance);
-    const prize = await manager.getRaffle(3);
-    expect(prize.raffleType).to.eq(3);
-    expect(prize.status).to.eq(0);
-    expect(prize.winner).to.eq(ethers.constants.AddressZero);
-
-    //steal LINK tokens blocked from the raffle
-    await manager.withdrawToken(link.address, await link.balanceOf(manager.address));
-
-    expect(await link.balanceOf(manager.address)).to.eq(0);
   });
 
   describe('Attempts to cancel the raffle and withdraw the NFT', () => {
