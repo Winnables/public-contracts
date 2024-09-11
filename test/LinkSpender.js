@@ -4,7 +4,7 @@ const { expect } = require('chai');
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
 describe('Validate LINK Spender', () => {
-  it.skip('Cannot deploy if approval fails', async () => {
+  it('Cannot deploy if approval fails', async () => {
     const signers = await ethers.getSigners();
     const linkFactory = await ethers.getContractFactory('MockBadLink');
     const link = await linkFactory.deploy();

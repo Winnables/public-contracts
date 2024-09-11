@@ -6,8 +6,7 @@ const {
 } = require('./common/utils');
 const { ccipDeployPrizeManager} = require('../utils/demo');
 const { whileImpersonating } = require('../utils/impersonate');
-const exp = require('node:constants');
-const {BigNumber, constants} = require('ethers');
+const { BigNumber } = require('ethers');
 
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
@@ -103,7 +102,8 @@ describe('CCIP Prize Manager', () => {
   });
 
   it('Should not be able to lock LINK as token prize', async () => {
-    await (await link.connect(winnablesDeployer).mint(manager.address, ethers.utils.parseEther('1'))).wait();
+    const linkAmount = ethers.utils.parseEther('1');
+    await (await link.connect(winnablesDeployer).mint(manager.address, linkAmount)).wait();
 
     await expect(manager.connect(winnablesDeployer).lockTokens(
       counterpartContractAddress,
@@ -113,7 +113,7 @@ describe('CCIP Prize Manager', () => {
       100
     )).to.be.revertedWithCustomError(manager, 'LINKTokenNotPermitted');
 
-    await (await manager.connect(winnablesDeployer).withdrawToken(link.address, constants.AddressZero)).wait();
+    await (await manager.connect(winnablesDeployer).withdrawToken(link.address, linkAmount)).wait();
   });
 
   it('Can receive NFT using safeTransferFrom', async () => {
@@ -736,7 +736,7 @@ describe('CCIP Prize Manager', () => {
     after(async () => {
       await snapshot.restore();
     });
-    
+
     it('Fund with LINK', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
     });
