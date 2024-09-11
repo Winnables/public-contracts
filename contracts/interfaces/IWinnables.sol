@@ -35,6 +35,7 @@ interface IWinnables {
     struct RequestStatus {
         uint256 raffleId;
         uint256 randomWord;
+        uint256 blockLastRequested;
     }
 
     struct Raffle {
