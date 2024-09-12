@@ -12,6 +12,9 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
     error MissingCCIPParams();
     error InsufficientLinkBalance(uint256 balance, uint256 required);
 
+    /// @dev extraArgs for ccip message
+    bytes private _ccipExtraArgs;
+
     function _sendCCIPMessage(
         address ccipDestAddress,
         uint64 ccipDestChainSelector,
@@ -29,7 +32,7 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
             receiver: abi.encode(ccipDestAddress),
             data: data,
             tokenAmounts: new Client.EVMTokenAmount[](0),
-            extraArgs: "",
+            extraArgs: _ccipExtraArgs,
             feeToken: LINK_TOKEN
         });
 
@@ -48,4 +51,9 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
             message
         );
     }
+
+    function _setCCIPExtraArgs(bytes calldata extraArgs) internal {
+        _ccipExtraArgs = extraArgs;
+    }
+
 }

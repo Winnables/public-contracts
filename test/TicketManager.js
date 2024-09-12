@@ -77,6 +77,20 @@ describe('CCIP Ticket Manager', () => {
     );
   });
 
+  it('Should not be able to set CCIP Extra Args as non-admin', async () => {
+    const randomUser = signers[10];
+
+    await expect(manager.connect(randomUser).setCCIPExtraArgs("0xff00")).to.be.revertedWithCustomError(
+      manager,
+      'MissingRole'
+    );
+  });
+
+  it('Should be able to set CCIP Extra Args as admin', async () => {
+    await manager.setCCIPExtraArgs("0x00ff");
+  });
+
+
   it('Should not be able to create a raffle before the prize is locked', async () => {
     const now = await blockTime();
     await expect(manager.createRaffle(

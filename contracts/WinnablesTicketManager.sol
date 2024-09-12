@@ -507,4 +507,10 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     function setRequestConfirmations(uint16 newRequestConfirmations) external onlyRole(0) {
         _vrfRequestConfirmations = newRequestConfirmations;
     }
+
+    /// @notice (Admin) Set extraArgs for outgoing CCIP Messages
+    /// @param extraArgs new value for ccipExtraArgs
+    function setCCIPExtraArgs(bytes calldata extraArgs) external onlyRole(0) {
+        _setCCIPExtraArgs(extraArgs);
+    }
 }

@@ -241,6 +241,12 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         if (!success) revert ETHTransferFail();
     }
 
+    /// @notice (Admin) Set extraArgs for outgoing CCIP Messages
+    /// @param extraArgs new value for ccipExtraArgs
+    function setCCIPExtraArgs(bytes calldata extraArgs) external onlyRole(0) {
+        _setCCIPExtraArgs(extraArgs);
+    }
+
     // =============================================================
     // -- Internal functions
     // =============================================================
