@@ -516,7 +516,7 @@ describe('CCIP Prize Manager', () => {
 
     it('Can not withdraw the tokens with withdrawNFT', async () => {
       await expect(manager.withdrawNFT(token.address, 1))
-        .to.be.revertedWithCustomError(manager, 'NoNFTToken');
+        .to.be.revertedWithCustomError(manager, 'NotAnNFT');
     });
 
     it('Can withdraw the Tokens now', async () => {

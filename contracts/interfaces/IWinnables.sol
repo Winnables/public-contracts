@@ -22,7 +22,7 @@ interface IWinnables {
     error ETHTransferFail();
     error RaffleRequiresTicketSupplyCap();
     error RaffleRequiresMaxHoldings();
-    error NoNFTToken(address nft, uint256 tokenId);
+    error NotAnNFT();
 
     event WinnerDrawn(uint256 indexed requestId);
     event RequestSent(uint256 indexed requestId, uint256 indexed raffleId);

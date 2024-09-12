@@ -223,8 +223,8 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     function withdrawNFT(address nft, uint256 tokenId) external onlyRole(0) {
         if (_nftLocked[nft][tokenId]) revert NFTLocked();
 
-        try ERC721(nft).tokenURI(tokenId) returns (string memory) {} catch {
-            revert NoNFTToken(nft, tokenId);
+        try ERC721(nft).ownerOf(tokenId) returns (address) {} catch {
+            revert NotAnNFT();
         }
         IERC721(nft).transferFrom(address(this), msg.sender, tokenId);
     }
