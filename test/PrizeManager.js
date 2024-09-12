@@ -60,6 +60,19 @@ describe('CCIP Prize Manager', () => {
     )).to.be.revertedWithCustomError(manager, 'MissingRole');
   });
 
+  it('Should not be able to set CCIP Extra Args as non-admin', async () => {
+    const randomUser = signers[10];
+
+    await expect(manager.connect(randomUser).setCCIPExtraArgs("0xff00")).to.be.revertedWithCustomError(
+      manager,
+      'MissingRole'
+    );
+  });
+
+  it('Should be able to set CCIP Extra Args as admin', async () => {
+    await manager.setCCIPExtraArgs("0x00ff");
+  });
+
   it('Should not be able to lock a NFT prize before sending it', async () => {
     await (await nft.mint(signers[0].address)).wait();
     await expect(manager.connect(winnablesDeployer).lockNFT(

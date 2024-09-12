@@ -37,9 +37,6 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     ///      (true if locked in an NFT Raffle)
     mapping(address => mapping(uint256 => bool)) private _nftLocked;
 
-    /// @dev extraArgs for ccip message
-    bytes private _ccipExtraArgs = "";
-
     /// @dev Contract constructor
     /// @param _linkToken Address of the LINK ERC20 token on the chain you are deploying to
     /// @param _ccipRouter Address of the Chainlink RouterClient contract on the chain you are deploying to
@@ -154,7 +151,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         _nftRaffles[raffleId].contractAddress = nft;
         _nftRaffles[raffleId].tokenId = tokenId;
 
-        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId), _ccipExtraArgs);
+        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
         emit NFTPrizeLocked(raffleId, nft, tokenId);
     }
 
@@ -177,7 +174,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         _ethLocked += amount;
         _ethRaffles[raffleId] = amount;
 
-        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId), _ccipExtraArgs);
+        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
         emit ETHPrizeLocked(raffleId, amount);
     }
 
@@ -204,7 +201,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         _tokenRaffles[raffleId].tokenAddress = token;
         _tokenRaffles[raffleId].amount = amount;
 
-        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId), _ccipExtraArgs);
+        _sendCCIPMessage(ticketManager, chainSelector, abi.encodePacked(raffleId));
         emit TokenPrizeLocked(raffleId, token, amount);
     }
 
@@ -244,10 +241,10 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         if (!success) revert ETHTransferFail();
     }
 
-    /// @notice (Admin) Use this to set extraArgs for ccip message
-    /// @param newExtraArgs new extraArgs to set
-    function setCcipExtraArgs(bytes memory newExtraArgs) external onlyRole(0) {
-        _ccipExtraArgs = newExtraArgs;
+    /// @notice (Admin) Set extraArgs for outgoing CCIP Messages
+    /// @param extraArgs new value for ccipExtraArgs
+    function setCCIPExtraArgs(bytes calldata extraArgs) external onlyRole(0) {
+        _setCCIPExtraArgs(extraArgs);
     }
 
     // =============================================================
