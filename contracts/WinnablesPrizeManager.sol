@@ -14,9 +14,6 @@ import "./interfaces/IWinnablesPrizeManager.sol";
 contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinnablesPrizeManager, IERC721Receiver {
     using SafeERC20 for IERC20;
 
-    error UnauthorizedToClaim();
-    error InvalidAddress();
-
     /// @dev Mapping from raffleId to raffleType
     mapping(uint256 => RafflePrize) private _rafflePrize;
 
@@ -193,6 +190,8 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         address token,
         uint256 amount
     ) external onlyRole(0) {
+        if (token == LINK_TOKEN) revert LINKTokenNotPermitted();
+
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
         uint256 tokenBalance = IERC20(token).balanceOf(address(this));
         if (tokenBalance < amount + _tokensLocked[token]) revert InvalidPrize();
