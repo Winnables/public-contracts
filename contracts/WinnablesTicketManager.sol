@@ -364,7 +364,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2Plus, IWinnablesTicke
     /// @param randomWords Array of 32 bytes integers sent back from the oracle
     function fulfillRandomWords(
         uint256 requestId,
-        uint256[] memory randomWords
+        uint256[] calldata randomWords
     ) internal override {
         RequestStatus storage request = _chainlinkRequests[requestId];
         Raffle storage raffle = _raffles[request.raffleId];

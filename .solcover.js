@@ -10,6 +10,7 @@ module.exports = {
     'mock/ReentrantClaimer.sol',
     'mock/TetherToken.sol',
     'mock/VRFCoordinatorV2BetterMock.sol',
+    'mock/VRFCoordinatorV2PlusMock.sol',
     'mock/MockBadLink.sol',
     'mock/ERC1155BadReceiver.sol',
     'mock/ERC1155Receiver.sol',
