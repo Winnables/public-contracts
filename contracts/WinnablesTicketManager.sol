@@ -18,6 +18,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
     uint256 constant internal MIN_RAFFLE_DURATION = 60;
     uint256 constant internal MAX_TICKET_PURCHASABLE = 3_000;
+    uint256 constant internal VRF_REQUEST_TIMEOUT = 200;
 
     address immutable internal VRF_COORDINATOR;
     address immutable private TICKETS_CONTRACT;
@@ -122,7 +123,8 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @return winner Address of the winner
     function getWinner(uint256 raffleId) external view returns(address winner) {
         Raffle storage raffle = _raffles[raffleId];
-        if (raffle.status < RaffleStatus.FULFILLED || raffle.status == RaffleStatus.CANCELED) {
+
+        if (raffle.chainlinkRequestId == 0 || raffle.status < RaffleStatus.FULFILLED) {
             revert RaffleNotFulfilled();
         }
         winner = _getWinnerByRequestId(raffle.chainlinkRequestId);
@@ -136,7 +138,8 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     function getRequestStatus(uint256 requestId) external view returns (
         bool fulfilled,
         uint256 randomWord,
-        uint256 raffleId
+        uint256 raffleId,
+        uint256 blockLastRequested
     ) {
         RequestStatus storage request = _chainlinkRequests[requestId];
         Raffle storage raffle = _raffles[request.raffleId];
@@ -144,6 +147,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         fulfilled = raffle.status == RaffleStatus.FULFILLED;
         randomWord = request.randomWord;
         raffleId = request.raffleId;
+        blockLastRequested = request.blockLastRequested;
     }
 
     /// @notice (Public) Check if a raffle should draw a winner
@@ -327,7 +331,8 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         );
         _chainlinkRequests[requestId] = RequestStatus({
             raffleId: raffleId,
-            randomWord: 0
+            randomWord: 0,
+            blockLastRequested: block.number
         });
         raffle.chainlinkRequestId = requestId;
         emit RequestSent(requestId, raffleId);
@@ -428,7 +433,18 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
     function _checkShouldDraw(uint256 raffleId) internal view {
         Raffle storage raffle = _raffles[raffleId];
-        if (raffle.status != RaffleStatus.IDLE) revert InvalidRaffle();
+        if (raffle.status == RaffleStatus.REQUESTED) {
+            uint256 blocksSinceLastRequest;
+            unchecked {
+                blocksSinceLastRequest = block.number - _chainlinkRequests[raffleId].blockLastRequested;
+            }
+            if (blocksSinceLastRequest > VRF_REQUEST_TIMEOUT) {
+                return;
+            }
+        }
+        if (raffle.status != RaffleStatus.IDLE) {
+            revert InvalidRaffle();
+        }
         uint256 currentTicketSold = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
         if (currentTicketSold == 0) {
             revert NoParticipants();

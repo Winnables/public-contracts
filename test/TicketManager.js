@@ -833,6 +833,20 @@ describe('CCIP Ticket Manager', () => {
       );
     });
 
+    it('Should be able to re-draw the winner if randomness is not fulfilled within timeout window', async () => {
+      await expect(manager.shouldDrawRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+      await helpers.mine(201);
+      expect(await manager.shouldDrawRaffle(1)).to.eq(true);
+      const { events } = await (await manager.drawWinner(1)).wait();
+      const requestSentEvent = events.find(e => e.event === 'RequestSent');
+      const { requestId } = requestSentEvent.args;
+      const { fulfilled, randomWord, raffleId } = await manager.getRequestStatus(requestId);
+      await expect(manager.getWinner(1)).to.be.revertedWithCustomError(manager, 'RaffleNotFulfilled');
+      expect(fulfilled).to.eq(false);
+      expect(randomWord).to.eq(0);
+      expect(raffleId).to.eq(1);
+    })
+
     it('Fulfills randomness', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
       await (await coordinator.fulfillRandomWordsWithOverride(1, manager.address, [randomWord()])).wait();
