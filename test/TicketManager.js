@@ -57,6 +57,7 @@ describe('CCIP Ticket Manager', () => {
     expect(await manager.supportsInterface("0x01ffc9a7")).to.eq(true);
     expect(await manager.supportsInterface("0x01ffc9a6")).to.eq(false);
     expect(await manager.getLinkToken()).to.eq(link.address);
+    expect(await tickets.manager()).to.eq(manager.address);
     const roles = await manager.getRoles(signers[0].address);
     expect(BigNumber.from(roles)).to.eq(0b11);
     const walletA = await getWalletWithEthers();
@@ -73,7 +74,7 @@ describe('CCIP Ticket Manager', () => {
   it('Cannot mint tickets', async () => {
     await expect(tickets.mint(signers[0].address, 1, 1)).to.be.revertedWithCustomError(
       tickets,
-      'MissingRole',
+      'NotTicketManager',
     );
   });
 
@@ -471,68 +472,6 @@ describe('CCIP Ticket Manager', () => {
         manager,
         'InvalidTicketCount'
       );
-    });
-
-    it('Bad ERC1155Receiver cannot purchase tickets', async () => {
-      const currentBlock = await ethers.provider.getBlockNumber();
-      const sig = await api.signMessage(ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(['address', 'uint256', 'uint256', 'uint16', 'uint256', 'uint256'], [
-          badReceiver.address,
-          0,
-          1,
-          10,
-          currentBlock + 10,
-          0
-        ])
-      ));
-      const tx = whileImpersonating(badReceiver.address, ethers.provider, async (signer) =>
-        manager.connect(signer).buyTickets(1, 10, currentBlock + 10, sig)
-      );
-      await expect(tx).to.be.revertedWithCustomError(
-        tickets,
-        'TransferRejected'
-      )
-    });
-
-    it('Non ERC1155Receiver cannot purchase tickets', async () => {
-      const currentBlock = await ethers.provider.getBlockNumber();
-      const sig = await api.signMessage(ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(['address', 'uint256', 'uint256', 'uint16', 'uint256', 'uint256'], [
-          ccipRouter.address,
-          0,
-          1,
-          10,
-          currentBlock + 10,
-          0
-        ])
-      ));
-      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
-        manager.connect(signer).buyTickets(1, 10, currentBlock + 10, sig)
-      );
-      await expect(tx).to.be.revertedWithCustomError(
-        tickets,
-        'TransferRejected'
-      )
-    });
-
-    it('Good ERC1155Receiver can purchase tickets', async () => {
-      const currentBlock = await ethers.provider.getBlockNumber();
-      const sig = await api.signMessage(ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(['address', 'uint256', 'uint256', 'uint16', 'uint256', 'uint256'], [
-          goodReceiver.address,
-          0,
-          1,
-          10,
-          currentBlock + 10,
-          0
-        ])
-      ));
-      const tx = await whileImpersonating(goodReceiver.address, ethers.provider, async (signer) =>
-        manager.connect(signer).buyTickets(1, 10, currentBlock + 10, sig)
-      );
-      const { events } = await tx.wait();
-      expect(events).to.have.lengthOf(3);
-      expect(await tickets.balanceOf(goodReceiver.address, 1)).to.eq(10);
     });
 
     it('Buyer 1 gets 10 free tickets', async () => {

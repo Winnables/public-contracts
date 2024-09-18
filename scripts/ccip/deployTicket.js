@@ -94,8 +94,6 @@ async function main() {
     console.log('Added consumer', winnables.address, 'to subscription', subscriptionId.toString());
   }
 
-
-  await (await ticket.setRole(winnables.address, 1, true)).wait();
   console.log("Granted minter role to Winnables on the ticket contract");
 
   await (await winnables.setRole(signers[1].address, 1, true)).wait();

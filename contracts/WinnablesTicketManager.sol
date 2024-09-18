@@ -63,6 +63,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         SUBSCRIPTION_ID = _subscriptionId;
         KEY_HASH = _keyHash;
         TICKETS_CONTRACT = _tickets;
+        IWinnablesTicket(_tickets).initializeManager();
     }
 
     // =============================================================
