@@ -73,8 +73,11 @@ describe('CCIP Prize Manager', () => {
     await manager.setCCIPExtraArgs("0x00ff");
   });
 
-  it('Should not be able to lock a NFT prize before sending it', async () => {
+  it('Mint an NFT for locking', async () => {
     await (await nft.mint(signers[0].address)).wait();
+  })
+
+  it('Should not be able to lock a NFT prize before sending it', async () => {
     await expect(manager.connect(winnablesDeployer).lockNFT(
       counterpartContractAddress,
       1,
@@ -103,8 +106,31 @@ describe('CCIP Prize Manager', () => {
     )).to.be.revertedWithCustomError(manager, 'InvalidPrize');
   });
 
-  it('Cannot lock prize with insufficient LINK balance', async () => {
+  it('Transfers the NFT Prize for locking', async () => {
     await (await nft.transferFrom(signers[0].address, manager.address, 1)).wait();
+  })
+
+  it('Should not be able to lock a NFT prize to Zero address', async () => {
+    await expect(manager.connect(winnablesDeployer).lockNFT(
+      ethers.constants.AddressZero,
+      1,
+      1,
+      nft.address,
+      1
+    )).to.be.revertedWithCustomError(manager, 'MissingCCIPParams');
+  });
+
+  it('Should not be able to lock a NFT prize to Zero chain', async () => {
+    await expect(manager.connect(winnablesDeployer).lockNFT(
+      counterpartContractAddress,
+      0,
+      1,
+      nft.address,
+      1
+    )).to.be.revertedWithCustomError(manager, 'MissingCCIPParams');
+  });
+
+  it('Cannot lock prize with insufficient LINK balance', async () => {
     await expect(manager.connect(winnablesDeployer).lockNFT(
       counterpartContractAddress,
       1,
@@ -269,16 +295,7 @@ describe('CCIP Prize Manager', () => {
       await snapshot.restore();
     });
 
-    it('Cannot set CCIP Counterpart as a non-admin', async () => {
-      await expect(manager.connect(signers[1]).setCCIPCounterpart(
-        counterpartContractAddress,
-        1,
-        true
-      )).to.be.revertedWithCustomError(manager, 'MissingRole')
-    })
-
     it('Cannot cancel non-existing raffle', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -290,18 +307,26 @@ describe('CCIP Prize Manager', () => {
       );
       await expect(tx).to.be.revertedWithCustomError(
         manager,
-        'InvalidRaffle'
+        'UnauthorizedCCIPSender'
       );
     });
-  });
 
-  describe('Attempts to cancel the raffle and withdraw the NFT', () => {
-    before(async () => {
-      snapshot = await helpers.takeSnapshot();
+    it('Cannot declare a winner for a non-existing raffle', async () => {
+      const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
+        manager.connect(signer).ccipReceive({
+          messageId: ethers.constants.HashZero,
+          sourceChainSelector: 1,
+          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          data: '0x010000000000000000000000000000000000000000000000000000000000000005',
+          destTokenAmounts: []
+        })
+      );
+      await expect(tx).to.be.revertedWithCustomError(
+        manager,
+        'UnauthorizedCCIPSender'
+      );
     });
-    after(async () => {
-      await snapshot.restore();
-    });
+
     it('Can\'t withdraw the prize', async () => {
       await expect(manager.withdrawNFT(nft.address, 1))
         .to.be.revertedWithCustomError(manager, 'NFTLocked');
@@ -318,11 +343,12 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can\'t unlock the prize from an unauthorized sender', async () => {
+      const unauthorizedSender = await getWalletWithEthers();
       const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
           sourceChainSelector: 1,
-          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          sender: '0x' + unauthorizedSender.address.slice(-40).padStart(64, '0'),
           data: '0x000000000000000000000000000000000000000000000000000000000000000001',
           destTokenAmounts: []
         })
@@ -331,7 +357,6 @@ describe('CCIP Prize Manager', () => {
     })
 
     it('Can unlock the tokens with a cancel message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -414,11 +439,12 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can\'t unlock the prize from an unauthorized sender', async () => {
+      const unauthorizedSender = await getWalletWithEthers();
       const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
           sourceChainSelector: 1,
-          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          sender: '0x' + unauthorizedSender.address.slice(-40).padStart(64, '0'),
           data: '0x000000000000000000000000000000000000000000000000000000000000000002',
           destTokenAmounts: []
         })
@@ -427,7 +453,6 @@ describe('CCIP Prize Manager', () => {
     })
 
     it('Can unlock the prize with a cancel message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -499,11 +524,12 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can\'t unlock the prize from an unauthorized sender', async () => {
+      const unauthorizedSender = await getWalletWithEthers();
       const tx = whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
           sourceChainSelector: 1,
-          sender: '0x' + counterpartContractAddress.slice(-40).padStart(64, '0'),
+          sender: '0x' + unauthorizedSender.address.slice(-40).padStart(64, '0'),
           data: '0x000000000000000000000000000000000000000000000000000000000000000003',
           destTokenAmounts: []
         })
@@ -512,7 +538,6 @@ describe('CCIP Prize Manager', () => {
     })
 
     it('Can unlock the tokens with a cancel message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -562,7 +587,6 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can unlock the prize with a WinnerDrawn message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -612,7 +636,6 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can unlock the prize with a WinnerDrawn message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -659,7 +682,6 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Unlocks the prize with a WinnerDrawn message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -704,7 +726,6 @@ describe('CCIP Prize Manager', () => {
     });
 
     it('Can unlock the prize with a WinnerDrawn message', async () => {
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       const tx = await whileImpersonating(ccipRouter.address, ethers.provider, async (signer) =>
         manager.connect(signer).ccipReceive({
           messageId: ethers.constants.HashZero,
@@ -761,7 +782,6 @@ describe('CCIP Prize Manager', () => {
 
     it('Create 2 raffles', async () => {
       const value = BigNumber.from(10).pow(18);
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       {
         const tx = await manager.connect(winnablesDeployer).lockETH(
           counterpartContractAddress,
@@ -855,7 +875,6 @@ describe('CCIP Prize Manager', () => {
 
     it('Create 2 ETH raffles', async () => {
       const value = 1;
-      await (await manager.setCCIPCounterpart(counterpartContractAddress, 1, true)).wait();
       {
         const tx = await manager.connect(winnablesDeployer).lockETH(
           counterpartContractAddress,
