@@ -34,6 +34,7 @@ interface IWinnablesPrizeManager is IWinnables {
     struct RafflePrize {
         RaffleType raffleType;
         RafflePrizeStatus status;
+        bytes32 ccipCounterpart;
         address winner;
     }
 

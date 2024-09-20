@@ -16,6 +16,15 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
     bytes private _ccipExtraArgs;
 
     function _sendCCIPMessage(
+        bytes32 packedCcipCounterpart,
+        bytes memory data
+    ) internal returns(bytes32) {
+        address ccipDestAddress = address(uint160(uint256(packedCcipCounterpart)));
+        uint64 chainSelector = uint64(uint256(packedCcipCounterpart) >> 160);
+        return _sendCCIPMessage(ccipDestAddress, chainSelector, data);
+    }
+
+    function _sendCCIPMessage(
         address ccipDestAddress,
         uint64 ccipDestChainSelector,
         bytes memory data
@@ -55,5 +64,4 @@ abstract contract BaseCCIPSender is BaseCCIPContract, BaseLinkConsumer {
     function _setCCIPExtraArgs(bytes calldata extraArgs) internal {
         _ccipExtraArgs = extraArgs;
     }
-
 }

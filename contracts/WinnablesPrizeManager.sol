@@ -118,18 +118,6 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     // -- Admin functions
     // =============================================================
 
-    /// @notice (Admin) Manage approved counterpart CCIP contracts
-    /// @param contractAddress Address of counterpart contract on the remote chain
-    /// @param chainSelector CCIP Chain selector of the remote chain
-    /// @param enabled Boolean representing whether this counterpart should be allowed or denied
-    function setCCIPCounterpart(
-        address contractAddress,
-        uint64 chainSelector,
-        bool enabled
-    ) external onlyRole(0) {
-        _setCCIPCounterpart(contractAddress, chainSelector, enabled);
-    }
-
     /// @notice (Admin) Send the prize for a Raffle to its rightful winner
     /// @param ticketManager Address of the Ticket Manager on the remote chain
     /// @param chainSelector CCIP Chain selector of the remote chain
@@ -144,6 +132,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         uint256 tokenId
     ) external onlyRole(0) {
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
+        rafflePrize.ccipCounterpart = _packCCIPContract(ticketManager, chainSelector);
         if (IERC721(nft).ownerOf(tokenId) != address(this)) revert InvalidPrize();
         if (_nftLocked[nft][tokenId]) revert InvalidPrize();
         rafflePrize.raffleType = RaffleType.NFT;
@@ -167,6 +156,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         uint256 amount
     ) external payable onlyRole(0) {
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
+        rafflePrize.ccipCounterpart = _packCCIPContract(ticketManager, chainSelector);
         uint256 ethBalance = address(this).balance;
 
         if (ethBalance < amount + _ethLocked) revert InvalidPrize();
@@ -194,6 +184,7 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         if (token == LINK_TOKEN) revert LINKTokenNotPermitted();
 
         RafflePrize storage rafflePrize = _checkValidRaffle(raffleId);
+        rafflePrize.ccipCounterpart = _packCCIPContract(ticketManager, chainSelector);
         uint256 tokenBalance = IERC20(token).balanceOf(address(this));
         if (tokenBalance < amount + _tokensLocked[token]) revert InvalidPrize();
         rafflePrize.raffleType = RaffleType.TOKEN;
@@ -265,17 +256,18 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
     ) internal override {
         (address _senderAddress) = abi.decode(message.sender, (address));
         bytes32 counterpart = _packCCIPContract(_senderAddress, message.sourceChainSelector);
-        if (!_ccipContracts[counterpart]) revert UnauthorizedCCIPSender();
 
         CCIPMessageType messageType = CCIPMessageType(uint8(message.data[0]));
         uint256 raffleId;
         address winner;
         if (messageType == CCIPMessageType.RAFFLE_CANCELED) {
             raffleId = _decodeRaffleCanceledMessage(message.data);
+            if (_rafflePrize[raffleId].ccipCounterpart != counterpart) revert UnauthorizedCCIPSender();
             _cancelRaffle(raffleId);
             return;
         }
         (raffleId, winner) = _decodeWinnerDrawnMessage(message.data);
+        if (_rafflePrize[raffleId].ccipCounterpart != counterpart) revert UnauthorizedCCIPSender();
         _rafflePrize[raffleId].winner = winner;
         emit WinnerPropagated(raffleId, winner);
     }
@@ -289,9 +281,9 @@ contract WinnablesPrizeManager is Roles, BaseCCIPSender, BaseCCIPReceiver, IWinn
         } else if (raffleType == RaffleType.TOKEN) {
             TokenInfo storage tokenInfo = _tokenRaffles[raffleId];
             unchecked { _tokensLocked[tokenInfo.tokenAddress] -= tokenInfo.amount; }
-        } else if (raffleType == RaffleType.ETH) {
+        } else {
             unchecked { _ethLocked -= _ethRaffles[raffleId]; }
-        } else revert InvalidRaffle();
+        }
         _rafflePrize[raffleId].status = RafflePrizeStatus.CANCELED;
         emit PrizeUnlocked(raffleId);
     }

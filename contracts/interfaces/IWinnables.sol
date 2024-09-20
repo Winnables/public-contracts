@@ -48,6 +48,7 @@ interface IWinnables {
         uint32 maxHoldings;
         uint256 totalRaised;
         uint256 chainlinkRequestId;
+        bytes32 ccipCounterpart;
         mapping(address => bytes32) participations;
     }
 }

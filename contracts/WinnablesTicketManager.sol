@@ -289,13 +289,12 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
 
     /// @notice (Public) Cancel a raffle if it can be canceled
     /// @param raffleId ID of the raffle to cancel
-    function cancelRaffle(address prizeManager, uint64 chainSelector, uint256 raffleId) external {
+    function cancelRaffle(uint256 raffleId) external {
         _checkShouldCancel(raffleId);
 
         _raffles[raffleId].status = RaffleStatus.CANCELED;
         _sendCCIPMessage(
-            prizeManager,
-            chainSelector,
+            _raffles[raffleId].ccipCounterpart,
             abi.encodePacked(uint8(CCIPMessageType.RAFFLE_CANCELED), raffleId)
         );
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
@@ -343,13 +342,13 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @notice (Public) Send a cross-chain message to the Prize Manager to
     ///         mark the prize as claimable by the winner
     /// @param raffleId ID of the Raffle we wish to draw a winner for
-    function propagateRaffleWinner(address prizeManager, uint64 chainSelector, uint256 raffleId) external {
+    function propagateRaffleWinner(uint256 raffleId) external {
         Raffle storage raffle = _raffles[raffleId];
         if (raffle.status != RaffleStatus.FULFILLED) revert InvalidRaffleStatus();
         raffle.status = RaffleStatus.PROPAGATED;
         address winner = _getWinnerByRequestId(raffle.chainlinkRequestId);
 
-        _sendCCIPMessage(prizeManager, chainSelector, abi.encodePacked(uint8(CCIPMessageType.WINNER_DRAWN), raffleId, winner));
+        _sendCCIPMessage(raffle.ccipCounterpart, abi.encodePacked(uint8(CCIPMessageType.WINNER_DRAWN), raffleId, winner));
         IWinnablesTicket(TICKETS_CONTRACT).refreshMetadata(raffleId);
         unchecked {
             _lockedETH -= raffle.totalRaised;
@@ -391,6 +390,9 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
             return;
         }
         _raffles[raffleId].status = RaffleStatus.PRIZE_LOCKED;
+        _raffles[raffleId].ccipCounterpart = _packCCIPContract(
+            abi.decode(message.sender, (address)), message.sourceChainSelector
+        );
 
         emit RafflePrizeLocked(
             message.messageId,

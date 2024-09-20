@@ -271,7 +271,7 @@ describe('CCIP Ticket Manager', () => {
 
     it('Should not be able to cancel if the raffle is still open', async () => {
       await expect(
-        manager.cancelRaffle(counterpartContractAddress, 1, 1)
+        manager.cancelRaffle(1)
       ).to.be.revertedWithCustomError(manager, 'RaffleIsStillOpen');
     });
 
@@ -280,7 +280,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to cancel raffle at the exact timestamp of its end time', async () => {
-      await expect(manager.cancelRaffle(counterpartContractAddress, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(
         manager,
         'RaffleIsStillOpen'
       );
@@ -291,7 +291,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to cancel with insufficient LINK balance', async () => {
-      await expect(manager.cancelRaffle(counterpartContractAddress, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(
         manager,
         'InsufficientLinkBalance'
       );
@@ -327,11 +327,15 @@ describe('CCIP Ticket Manager', () => {
 
     it('Cancels and sends cancellation CCIP Message', async () => {
       expect(await manager.shouldCancelRaffle(1)).to.eq(true);
-      const tx = await manager.cancelRaffle(counterpartContractAddress, 1, 1);
+      const tx = await manager.cancelRaffle(1);
       const { events } = await tx.wait();
       expect(events).to.have.lengthOf(3);
       const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
       expect(ccipMessageEvent.name).to.eq('MockCCIPMessageEvent');
+      expect(ccipMessageEvent.args.chain).to.eq(1);
+      expect(ethers.utils.getAddress(
+        '0x' + ccipMessageEvent.args.receiver.slice(-40)
+      )).to.eq(counterpartContractAddress);
       expect(ccipMessageEvent.args.data).to.eq('0x000000000000000000000000000000000000000000000000000000000000000001');
       await expect(manager.getWinner(1)).to.be.revertedWithCustomError(manager, 'RaffleNotFulfilled');
     });
@@ -347,13 +351,13 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Cannot unlock the prize as non-admin', async () => {
-      const tx = manager.connect(signers[1]).cancelRaffle(counterpartContractAddress, 1, 1);
+      const tx = manager.connect(signers[1]).cancelRaffle(1);
       await expect(tx).to.be.revertedWithCustomError(manager, 'MissingRole')
     });
 
     it('Should unlock the prize', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
-      const tx = await manager.cancelRaffle(counterpartContractAddress, 1, 1);
+      const tx = await manager.cancelRaffle(1);
       const { events } = await tx.wait();
       expect(events).to.have.lengthOf(3);
       const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
@@ -511,7 +515,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to cancel if the raffle is still open', async () => {
-      await expect(manager.cancelRaffle(counterpartContractAddress, 1, 1))
+      await expect(manager.cancelRaffle(1))
         .to.be.revertedWithCustomError(manager, 'RaffleIsStillOpen');
     });
 
@@ -538,7 +542,7 @@ describe('CCIP Ticket Manager', () => {
     })
 
     it('Cancels and sends cancellation CCIP Message', async () => {
-      const tx = await manager.cancelRaffle(counterpartContractAddress, 1, 1);
+      const tx = await manager.cancelRaffle(1);
       const { events } = await tx.wait();
       expect(events).to.have.lengthOf(3);
       const ccipMessageEvent = ccipRouter.interface.parseLog(events[0]);
@@ -621,7 +625,7 @@ describe('CCIP Ticket Manager', () => {
 
       await (await manager.drawWinner(2)).wait();
       await (await coordinator.fulfillRandomWordsWithOverride(1, manager.address, [randomWord()])).wait();
-      await (await manager.propagateRaffleWinner(counterpartContractAddress, 1, 2)).wait();
+      await (await manager.propagateRaffleWinner(2)).wait();
       const balanceBefore = await ethers.provider.getBalance(signers[0].address);
       const receipt = await (await manager.withdrawETH()).wait();
       const gas = receipt.cumulativeGasUsed.mul(receipt.effectiveGasPrice);
@@ -750,7 +754,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Cannot cancel after drawing', async () => {
-      await expect(manager.cancelRaffle(counterpartContractAddress, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(
         manager,
         'InvalidRaffle'
       );
@@ -766,7 +770,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to propagate winner before randomness fulfillment', async () => {
-      await expect(manager.propagateRaffleWinner(ethers.constants.AddressZero, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.propagateRaffleWinner(1)).to.be.revertedWithCustomError(
         manager,
         'InvalidRaffleStatus'
       );
@@ -810,22 +814,8 @@ describe('CCIP Ticket Manager', () => {
       expect(await manager.getWinner(1)).to.eq(winner.address);
     })
 
-    it('Should not be able to propagate winner to null address', async () => {
-      await expect(manager.propagateRaffleWinner(ethers.constants.AddressZero, 1, 1)).to.be.revertedWithCustomError(
-        manager,
-        'MissingCCIPParams'
-      );
-    });
-
-    it('Should not be able to propagate winner to null chain', async () => {
-      await expect(manager.propagateRaffleWinner(counterpartContractAddress, 0, 1)).to.be.revertedWithCustomError(
-        manager,
-        'MissingCCIPParams'
-      );
-    });
-
     it('Should be able to propagate when the winner is drawn', async () => {
-      const { events } = await (await manager.propagateRaffleWinner(counterpartContractAddress, 1, 1)).wait();
+      const { events } = await (await manager.propagateRaffleWinner(1)).wait();
       expect(events).to.have.lengthOf(3);
       const ccipEvent = ccipRouter.interface.parseLog(events[0]);
       expect(ccipEvent.args.chain).to.eq(1);
@@ -837,7 +827,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to propagate winner twice', async () => {
-      await expect(manager.propagateRaffleWinner(ethers.constants.AddressZero, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.propagateRaffleWinner(1)).to.be.revertedWithCustomError(
         manager,
         'InvalidRaffleStatus'
       );
@@ -1071,7 +1061,7 @@ describe('CCIP Ticket Manager', () => {
 
     it('Should not be able to cancel the raffle', async () => {
       await helpers.time.increase(7200);
-      await expect(manager.cancelRaffle(counterpartContractAddress, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(
         manager,
         'TargetTicketsReached'
       );
@@ -1138,7 +1128,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Cannot cancel after drawing', async () => {
-      await expect(manager.cancelRaffle(counterpartContractAddress, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(
         manager,
         'InvalidRaffle'
       );
@@ -1154,7 +1144,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to propagate winner before randomness fulfillment', async () => {
-      await expect(manager.propagateRaffleWinner(ethers.constants.AddressZero, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.propagateRaffleWinner(1)).to.be.revertedWithCustomError(
         manager,
         'InvalidRaffleStatus'
       );
@@ -1184,22 +1174,8 @@ describe('CCIP Ticket Manager', () => {
       expect(await manager.getWinner(1)).to.eq(winner.address);
     })
 
-    it('Should not be able to propagate winner to null address', async () => {
-      await expect(manager.propagateRaffleWinner(ethers.constants.AddressZero, 1, 1)).to.be.revertedWithCustomError(
-        manager,
-        'MissingCCIPParams'
-      );
-    });
-
-    it('Should not be able to propagate winner to null chain', async () => {
-      await expect(manager.propagateRaffleWinner(counterpartContractAddress, 0, 1)).to.be.revertedWithCustomError(
-        manager,
-        'MissingCCIPParams'
-      );
-    });
-
     it('Should be able to propagate when the winner is drawn', async () => {
-      const { events } = await (await manager.propagateRaffleWinner(counterpartContractAddress, 1, 1)).wait();
+      const { events } = await (await manager.propagateRaffleWinner(1)).wait();
       expect(events).to.have.lengthOf(3);
       const ccipEvent = ccipRouter.interface.parseLog(events[0]);
       expect(ccipEvent.args.chain).to.eq(1);
@@ -1211,7 +1187,7 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to propagate winner twice', async () => {
-      await expect(manager.propagateRaffleWinner(ethers.constants.AddressZero, 1, 1)).to.be.revertedWithCustomError(
+      await expect(manager.propagateRaffleWinner(1)).to.be.revertedWithCustomError(
         manager,
         'InvalidRaffleStatus'
       );
