@@ -1,6 +1,6 @@
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
-const { pointOneLink, oneGwei, oneHundredLink, formatBytes } = require('./common/chainlink');
+const { oneHundredLink, formatBytes } = require('./common/chainlink');
 
 const { whileImpersonating } = require('../utils/impersonate');
 const helpers = require('@nomicfoundation/hardhat-network-helpers');
@@ -12,39 +12,21 @@ describe('Winnables Tickets', () => {
   let manager;
   let ticket;
   let link;
-  let subscriptionId;
-  let coordinator;
-  let ccipRouter;
   let snapshot;
 
   before(async () => {
     signers = await ethers.getSigners();
     const linkFactory = await ethers.getContractFactory('MockLink');
-    const coordinatorFactory = await ethers.getContractFactory('VRFCoordinatorV2BetterMock')
-    const ccipRouterFactory  = await ethers.getContractFactory('CCIPRouter');
     link = await linkFactory.deploy();
     await link.deployed();
 
-    coordinator = await coordinatorFactory.deploy(
-      link.address,
-      pointOneLink,
-      oneGwei
-    );
-    await coordinator.deployed();
-
-    ccipRouter = await ccipRouterFactory.deploy(link.address);
-    await ccipRouter.deployed();
-
-    const { events } = await (await coordinator.createSubscription()).wait();
-    subscriptionId = events[0].args.subId;
-    await (await link.transferAndCall(coordinator.address, oneHundredLink, formatBytes(subscriptionId, 32))).wait();
+    await link.mint(signers[0].address, oneHundredLink.mul(10));
 
     const TicketFactory = await ethers.getContractFactory(
       'WinnablesTicket',
     );
     ticket = await TicketFactory.deploy();
     await ticket.deployed();
-
   });
 
   describe('Initializes correctly', () => {
@@ -87,6 +69,7 @@ describe('Winnables Tickets', () => {
     after(async () => {
       await snapshot.restore();
     });
+
     it('Doesn\'t accept manager deployed by non-owner', async () => {
       const WinnablesTicketManagerFactory = await ethers.getContractFactory(
         'WinnablesTicketManager',
@@ -94,11 +77,11 @@ describe('Winnables Tickets', () => {
       );
       const tx = WinnablesTicketManagerFactory.deploy(
         link.address,
-        coordinator.address,
-        subscriptionId,
+        link.address,
+        0,
         ethers.constants.HashZero,
         ticket.address,
-        ccipRouter.address
+        ticket.address
       );
       await expect(tx).to.be.revertedWithCustomError(ticket, 'NotOwnerOrigin');
     });
@@ -109,18 +92,16 @@ describe('Winnables Tickets', () => {
       );
       manager = await WinnablesTicketManagerFactory.deploy(
         link.address,
-        coordinator.address,
-        subscriptionId,
+        link.address,
+        0,
         ethers.constants.HashZero,
         ticket.address,
-        ccipRouter.address
+        ticket.address
       );
       await manager.deployed();
 
       await (await manager.setRole(signers[0].address, 1, true)).wait();
       await (await manager.setRole(signers[1].address, 1, true)).wait();
-
-      await (await coordinator.addConsumer(subscriptionId, manager.address)).wait();
     });
 
     it('Cannot initialize twice', async () => {
@@ -129,11 +110,11 @@ describe('Winnables Tickets', () => {
       );
       const tx = WinnablesTicketManagerFactory.deploy(
         link.address,
-        coordinator.address,
-        subscriptionId,
+        link.address,
+        0,
         ethers.constants.HashZero,
         ticket.address,
-        ccipRouter.address
+        ticket.address
       );
       await expect(tx).to.be.revertedWithCustomError(ticket, 'AlreadyInitialized');
     });
@@ -225,18 +206,16 @@ describe('Winnables Tickets', () => {
       );
       manager = await WinnablesTicketManagerFactory.deploy(
         link.address,
-        coordinator.address,
-        subscriptionId,
+        link.address,
+        0,
         ethers.constants.HashZero,
         ticket.address,
-        ccipRouter.address
+        ticket.address
       );
       await manager.deployed();
 
       await (await manager.setRole(signers[0].address, 1, true)).wait();
       await (await manager.setRole(signers[1].address, 1, true)).wait();
-
-      await (await coordinator.addConsumer(subscriptionId, manager.address)).wait();
     });
 
     it('Transfers ownership', async () => {

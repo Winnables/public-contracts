@@ -2,7 +2,7 @@ const env = process.env.NODE_ENV ?? 'local';
 require(`dotenv`).config({ path: `.env.${env}` });
 
 const { ethers, network } = require('hardhat');
-const { pointOneLink, oneGwei, oneHundredLink, formatBytes } = require('../test/common/chainlink');
+const { oneHundredLink, formatBytes } = require('../test/common/chainlink');
 
 async function ccipDeployTicketManager(deployer = undefined, approver = undefined, verbose = false) {
   const signers = await ethers.getSigners();
@@ -18,16 +18,13 @@ async function ccipDeployTicketManager(deployer = undefined, approver = undefine
     console.log(`- Using network ${chainId}`);
   }
   const linkFactory = await ethers.getContractFactory('MockLink', deployer);
-  const coordinatorFactory = await ethers.getContractFactory('VRFCoordinatorV2BetterMock', deployer)
+  const coordinatorFactory = await ethers.getContractFactory('VRFCoordinatorV2_5BetterMock', deployer)
   const ccipRouterFactory  = await ethers.getContractFactory('CCIPRouter', deployer);
   const link = await linkFactory.deploy();
   await link.deployed();
+  await link.mint(deployer.address, oneHundredLink.mul(10));
 
-  const coordinator = await coordinatorFactory.deploy(
-    link.address,
-    pointOneLink,
-    oneGwei
-  );
+  const coordinator = await coordinatorFactory.deploy(link.address);
   await coordinator.deployed();
 
   const ccipRouter = await ccipRouterFactory.deploy(link.address);

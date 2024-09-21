@@ -49,7 +49,7 @@ async function main() {
   if (confirmation !== 'confirm') {
     throw new Error('Abort.');
   }
-  const Coordinator = await ethers.getContractFactory('VRFCoordinatorV2BetterMock');
+  const Coordinator = await ethers.getContractFactory('VRFCoordinatorV2PlusMock');
   const coordinator = Coordinator.attach(coordinatorAddress);
 
   let createSubscription = false;

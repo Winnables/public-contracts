@@ -4,8 +4,8 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
 import "./Roles.sol";
 import "./interfaces/IWinnablesTicketManager.sol";
@@ -13,21 +13,20 @@ import "./interfaces/IWinnablesTicket.sol";
 import "./BaseCCIPSender.sol";
 import "./BaseCCIPReceiver.sol";
 
-contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketManager, BaseCCIPSender, BaseCCIPReceiver {
+contract WinnablesTicketManager is Roles, VRFConsumerBaseV2Plus, IWinnablesTicketManager, BaseCCIPSender, BaseCCIPReceiver {
     using SafeERC20 for IERC20;
 
     uint256 constant internal MIN_RAFFLE_DURATION = 60;
     uint256 constant internal MAX_TICKET_PURCHASABLE = 3_000;
     uint256 constant internal VRF_REQUEST_TIMEOUT = 200;
 
-    address immutable internal VRF_COORDINATOR;
     address immutable private TICKETS_CONTRACT;
 
     /// @dev The key hash of the Chainlink VRF
     bytes32 private immutable KEY_HASH;
 
     /// @dev The subscription ID of the Chainlink VRF
-    uint64 public immutable SUBSCRIPTION_ID;
+    uint256 public immutable SUBSCRIPTION_ID;
 
     /// @dev Mapping from Chainlink request id to struct RequestStatus
     mapping(uint256 => RequestStatus) internal _chainlinkRequests;
@@ -54,12 +53,11 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     constructor(
         address _linkToken,
         address _vrfCoordinator,
-        uint64 _subscriptionId,
+        uint256 _subscriptionId,
         bytes32 _keyHash,
         address _tickets,
         address _ccipRouter
-    ) VRFConsumerBaseV2(_vrfCoordinator) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken, _ccipRouter) {
-        VRF_COORDINATOR = _vrfCoordinator;
+    ) VRFConsumerBaseV2Plus(_vrfCoordinator) BaseCCIPContract(_ccipRouter) BaseLinkConsumer(_linkToken, _ccipRouter) {
         SUBSCRIPTION_ID = _subscriptionId;
         KEY_HASH = _keyHash;
         TICKETS_CONTRACT = _tickets;
@@ -322,13 +320,19 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
         _checkShouldDraw(raffleId);
         raffle.status = RaffleStatus.REQUESTED;
 
-        uint256 requestId = VRFCoordinatorV2Interface(VRF_COORDINATOR).requestRandomWords(
-            KEY_HASH,
-            SUBSCRIPTION_ID,
-            _vrfRequestConfirmations,
-            100_000,
-            1
+        uint256 requestId = s_vrfCoordinator.requestRandomWords(
+            VRFV2PlusClient.RandomWordsRequest({
+                keyHash: KEY_HASH,
+                subId: SUBSCRIPTION_ID,
+                requestConfirmations: _vrfRequestConfirmations,
+                callbackGasLimit: 100_000,
+                numWords: 1,
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                )
+            })
         );
+
         _chainlinkRequests[requestId] = RequestStatus({
             raffleId: raffleId,
             randomWord: 0,
@@ -360,7 +364,7 @@ contract WinnablesTicketManager is Roles, VRFConsumerBaseV2, IWinnablesTicketMan
     /// @param randomWords Array of 32 bytes integers sent back from the oracle
     function fulfillRandomWords(
         uint256 requestId,
-        uint256[] memory randomWords
+        uint256[] calldata randomWords
     ) internal override {
         RequestStatus storage request = _chainlinkRequests[requestId];
         Raffle storage raffle = _raffles[request.raffleId];
