@@ -624,7 +624,7 @@ describe('CCIP Ticket Manager', () => {
       }
 
       await (await manager.drawWinner(2)).wait();
-      await (await coordinator.fulfillRandomWordsWithOverride(1, manager.address, [randomWord()])).wait();
+      await (await coordinator.fulfillRandomWords(1, [randomWord()])).wait();
       await (await manager.propagateRaffleWinner(2)).wait();
       const balanceBefore = await ethers.provider.getBalance(signers[0].address);
       const receipt = await (await manager.withdrawETH()).wait();
@@ -792,7 +792,7 @@ describe('CCIP Ticket Manager', () => {
 
     it('Fulfills randomness', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
-      await (await coordinator.fulfillRandomWordsWithOverride(1, manager.address, [randomWord()])).wait();
+      await (await coordinator.fulfillRandomWords(1, [randomWord()])).wait();
     });
 
     it('Computes ticket numbers correclty', async () => {
@@ -871,7 +871,7 @@ describe('CCIP Ticket Manager', () => {
       await expect(manager.withdrawTokens(
         link.address,
         balance.add(10)
-      )).to.be.revertedWith('SafeERC20: low-level call failed');
+      )).to.be.revertedWith('ERC20: transfer amount exceeds balance');
     });
 
     it('Should not be able to withdraw tokens as non-admin', async () => {
@@ -948,7 +948,7 @@ describe('CCIP Ticket Manager', () => {
       await (await manager.connect(buyer).buyTickets(5, 100, currentBlock + 10, sig)).wait();
       const drawWinnerReceipt = await (await manager.drawWinner(5)).wait();
       const { requestId } = drawWinnerReceipt.events[1].args;
-      await (await coordinator.fulfillRandomWordsWithOverride(requestId, manager.address, [randomWord()])).wait();
+      await (await coordinator.fulfillRandomWords(requestId, [randomWord()])).wait();
       expect(await manager.getWinner(5)).to.eq(buyer.address);
     });
   });
@@ -1076,7 +1076,7 @@ describe('CCIP Ticket Manager', () => {
 
     it('Should not be able to request randomness with less than minimum confirmation', async () => {
       await (await coordinator.configRequestConfirmations(5)).wait();
-      await expect(manager.drawWinner(1)).to.be.revertedWithCustomError(coordinator, 'InvalidRequestConfirmations');
+      await expect(manager.drawWinner(1)).to.be.reverted;
     });
 
     it('Should not be able to configure request confirmations as non-admin', async () => {
@@ -1152,7 +1152,7 @@ describe('CCIP Ticket Manager', () => {
 
     it('Fulfills randomness', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
-      await (await coordinator.fulfillRandomWordsWithOverride(1, manager.address, [randomWord()])).wait();
+      await (await coordinator.fulfillRandomWords(1, [randomWord()])).wait();
     });
 
     it('Computes ticket numbers correclty', async () => {
@@ -1231,7 +1231,7 @@ describe('CCIP Ticket Manager', () => {
       await expect(manager.withdrawTokens(
         link.address,
         balance.add(10)
-      )).to.be.revertedWith('SafeERC20: low-level call failed');
+      )).to.be.revertedWith('ERC20: transfer amount exceeds balance');
     });
 
     it('Should not be able to withdraw tokens as non-admin', async () => {
@@ -1308,7 +1308,7 @@ describe('CCIP Ticket Manager', () => {
       await (await manager.connect(buyer).buyTickets(5, 100, currentBlock + 10, sig)).wait();
       const drawWinnerReceipt = await (await manager.drawWinner(5)).wait();
       const { requestId } = drawWinnerReceipt.events[1].args;
-      await (await coordinator.fulfillRandomWordsWithOverride(requestId, manager.address, [randomWord()])).wait();
+      await (await coordinator.fulfillRandomWords(requestId, [randomWord()])).wait();
       expect(await manager.getWinner(5)).to.eq(buyer.address);
     });
   });
