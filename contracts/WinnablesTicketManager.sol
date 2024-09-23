@@ -525,7 +525,10 @@ contract WinnablesTicketManager is
             revert RaffleIsStillOpen();
         }
         uint256 supply = IWinnablesTicket(TICKETS_CONTRACT).supplyOf(raffleId);
-        if (supply > raffle.minTicketsThreshold) {
+        if (supply == 0) {
+            return;
+        }
+        if (supply >= raffle.minTicketsThreshold) {
             revert TargetTicketsReached();
         }
     }
