@@ -159,7 +159,7 @@ contract WinnablesTicketManager is
 
     /// @notice (Public) Check if a raffle should draw a winner
     /// @param raffleId Raffle ID
-    /// @return true if the winner should be drawn, false otherwise
+    /// @return true if the winner should be drawn, revert otherwise
     function shouldDrawRaffle(uint256 raffleId) external view returns(bool) {
         _checkShouldDraw(raffleId);
         return true;
@@ -167,7 +167,7 @@ contract WinnablesTicketManager is
 
     /// @notice (Public) Check if a raffle should be canceled
     /// @param raffleId Raffle ID
-    /// @return true if the raffle should be canceled, false otherwise
+    /// @return true if the raffle should be canceled, revert otherwise
     function shouldCancelRaffle(uint256 raffleId) external view returns(bool) {
         _checkShouldCancel(raffleId);
         return true;
