@@ -492,6 +492,7 @@ contract WinnablesTicketManager is
                 blocksSinceLastRequest = block.number - _chainlinkRequests[raffleId].blockLastRequested;
             }
             if (blocksSinceLastRequest > VRF_REQUEST_TIMEOUT) {
+                _checkRole(msg.sender, 0);
                 return;
             }
         }
@@ -514,6 +515,16 @@ contract WinnablesTicketManager is
 
     function _checkShouldCancel(uint256 raffleId) internal view {
         Raffle storage raffle = _raffles[raffleId];
+        if (raffle.status == RaffleStatus.REQUESTED) {
+            uint256 blocksSinceLastRequest;
+            unchecked {
+                blocksSinceLastRequest = block.number - _chainlinkRequests[raffleId].blockLastRequested;
+            }
+            if (blocksSinceLastRequest > VRF_REQUEST_TIMEOUT) {
+                _checkRole(msg.sender, 0);
+                return;
+            }
+        }
         if (raffle.status == RaffleStatus.PRIZE_LOCKED) {
             _checkRole(msg.sender, 0);
             return;

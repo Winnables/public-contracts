@@ -12,6 +12,17 @@ const { BigNumber } = require('ethers');
 
 ethers.utils.Logger.setLogLevel(ethers.utils.Logger.levels.ERROR);
 
+
+const RaffleStatus = {
+  NONE: 0,
+  PRIZE_LOCKED: 1,
+  IDLE: 2,
+  REQUESTED: 3,
+  FULFILLED: 4,
+  PROPAGATED: 5,
+  CLAIMED: 6,
+  CANCELED: 7,
+};
 describe('CCIP Ticket Manager', () => {
   let ccipRouter;
   let link;
@@ -780,9 +791,31 @@ describe('CCIP Ticket Manager', () => {
       );
     });
 
-    it('Should be able to re-draw the winner if randomness is not fulfilled within timeout window', async () => {
+    it('Admin could re-draw or cancel if VRF Request times out', async () => {
       await expect(manager.shouldDrawRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+      await expect(manager.shouldCancelRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
       await helpers.mine(201);
+      expect(await manager.shouldDrawRaffle(1)).to.eq(true);
+      expect(await manager.shouldCancelRaffle(1)).to.eq(true);
+    });
+
+    it('Public couldn\'t redraw if VRF Request times out', async () => {
+      const randomGuy = await getWalletWithEthers();
+      const contract = manager.connect(randomGuy);
+      await expect(contract.shouldDrawRaffle(1)).to.be.revertedWithCustomError(manager, 'MissingRole');
+      await expect(contract.shouldCancelRaffle(1)).to.be.revertedWithCustomError(manager, 'MissingRole');
+    });
+
+    it('Should be able to cancel if the raffle is not fullfilled within timeout window', async () => {
+      const intermediarySnapshot = await helpers.takeSnapshot();
+      await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
+      await (await manager.cancelRaffle(1)).wait();
+      const raffle = await manager.getRaffle(1);
+      expect(raffle.status).to.eq(RaffleStatus.CANCELED);
+      await intermediarySnapshot.restore();
+    });
+
+    it('Should be able to re-draw the winner if randomness is not fulfilled within timeout window', async () => {
       expect(await manager.shouldDrawRaffle(1)).to.eq(true);
       const { events } = await (await manager.drawWinner(1)).wait();
       const requestSentEvent = events.find(e => e.event === 'RequestSent');
