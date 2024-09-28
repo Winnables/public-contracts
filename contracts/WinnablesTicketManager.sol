@@ -310,9 +310,14 @@ contract WinnablesTicketManager is
     /// @notice (Public) Cancel a raffle if it can be canceled
     /// @param raffleId ID of the raffle to cancel
     function cancelRaffle(uint256 raffleId) external {
-        _checkShouldCancel(raffleId);
+        Raffle storage raffle = _raffles[raffleId];
+        if (raffle.status == RaffleStatus.REQUESTED) {
+            _checkVRFTimeout(raffle);
+        } else {
+            _checkShouldCancel(raffleId);
+        }
 
-        _raffles[raffleId].status = RaffleStatus.CANCELED;
+        raffle.status = RaffleStatus.CANCELED;
         _sendCCIPMessage(
             _raffles[raffleId].ccipCounterpart,
             abi.encodePacked(uint8(CCIPMessageType.RAFFLE_CANCELED), raffleId)
@@ -339,7 +344,11 @@ contract WinnablesTicketManager is
     /// @param raffleId ID of the Raffle we wish to draw a winner for
     function drawWinner(uint256 raffleId) external {
         Raffle storage raffle = _raffles[raffleId];
-        _checkShouldDraw(raffleId);
+        if (raffle.status == RaffleStatus.REQUESTED) {
+            _checkVRFTimeout(raffle);
+        } else {
+            _checkShouldDraw(raffleId);
+        }
         raffle.status = RaffleStatus.REQUESTED;
 
         uint256 requestId = s_vrfCoordinator.requestRandomWords(
@@ -394,8 +403,9 @@ contract WinnablesTicketManager is
     ) internal override {
         RequestStatus storage request = _chainlinkRequests[requestId];
         Raffle storage raffle = _raffles[request.raffleId];
-        if (raffle.status != RaffleStatus.REQUESTED) {
-            revert RequestNotFound(requestId);
+        if (raffle.chainlinkRequestId != requestId || raffle.status != RaffleStatus.REQUESTED) {
+            emit InvalidVRFRequest(requestId);
+            return;
         }
         request.randomWord = randomWords[0];
         raffle.status = RaffleStatus.FULFILLED;
@@ -486,16 +496,6 @@ contract WinnablesTicketManager is
 
     function _checkShouldDraw(uint256 raffleId) internal view {
         Raffle storage raffle = _raffles[raffleId];
-        if (raffle.status == RaffleStatus.REQUESTED) {
-            uint256 blocksSinceLastRequest;
-            unchecked {
-                blocksSinceLastRequest = block.number - _chainlinkRequests[raffleId].blockLastRequested;
-            }
-            if (blocksSinceLastRequest > VRF_REQUEST_TIMEOUT) {
-                _checkRole(msg.sender, 0);
-                return;
-            }
-        }
         if (raffle.status != RaffleStatus.IDLE) {
             revert InvalidRaffle();
         }
@@ -515,16 +515,6 @@ contract WinnablesTicketManager is
 
     function _checkShouldCancel(uint256 raffleId) internal view {
         Raffle storage raffle = _raffles[raffleId];
-        if (raffle.status == RaffleStatus.REQUESTED) {
-            uint256 blocksSinceLastRequest;
-            unchecked {
-                blocksSinceLastRequest = block.number - _chainlinkRequests[raffleId].blockLastRequested;
-            }
-            if (blocksSinceLastRequest > VRF_REQUEST_TIMEOUT) {
-                _checkRole(msg.sender, 0);
-                return;
-            }
-        }
         if (raffle.status == RaffleStatus.PRIZE_LOCKED) {
             _checkRole(msg.sender, 0);
             return;
@@ -542,6 +532,21 @@ contract WinnablesTicketManager is
         if (supply >= raffle.minTicketsThreshold) {
             revert TargetTicketsReached();
         }
+    }
+
+    function _checkVRFTimeout(Raffle storage raffle) internal {
+        uint256 requestId = raffle.chainlinkRequestId;
+        RequestStatus storage request = _chainlinkRequests[requestId];
+        uint256 blockLastRequested = request.blockLastRequested;
+        uint256 blocksSinceLastRequest;
+        unchecked {
+            blocksSinceLastRequest = block.number - blockLastRequested;
+        }
+        if (blocksSinceLastRequest < VRF_REQUEST_TIMEOUT) {
+            revert InvalidRaffle();
+        }
+        _checkRole(msg.sender, 0);
+        delete _chainlinkRequests[requestId];
     }
 
     /// @dev Checks the validity of a signature to allow the purchase of tickets at a given price

@@ -29,18 +29,14 @@ describe('CCIP Ticket Manager', () => {
   let signers;
   let manager;
   let tickets;
-  let approver;
-  let winnablesDeployer;
-  let nft;
-  let token;
   let api;
   let snapshot;
   let counterpartContractAddress;
   let coordinator;
-  let badReceiver;
-  let goodReceiver;
 
   before(async () => {
+    // Start the tests at block 100_000
+    await helpers.mine(100_000);
     signers = await ethers.getSigners();
     const result = await ccipDeployTicketManager();
     approver = result.approver;
@@ -79,6 +75,14 @@ describe('CCIP Ticket Manager', () => {
     await expect (manager.connect(walletA).setRole(walletA.address, 0, true)).to.be.revertedWithCustomError(
       manager,
       'MissingRole'
+    );
+    await expect(manager.drawWinner(1)).to.be.revertedWithCustomError(
+      manager,
+      'InvalidRaffle'
+    );
+    await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(
+      manager,
+      'InvalidRaffle'
     );
   });
 
@@ -634,8 +638,10 @@ describe('CCIP Ticket Manager', () => {
         await (await manager.connect(buyer).buyTickets(2, 10, currentBlock + 10, sig, { value: 100 })).wait();
       }
 
-      await (await manager.drawWinner(2)).wait();
-      await (await coordinator.fulfillRandomWords(1, [randomWord()])).wait();
+      const { events } = await (await manager.drawWinner(2)).wait();
+      const requestSentEvent = events.find(e => e.event === 'RequestSent');
+      const requestId = requestSentEvent.args.requestId;
+      await (await coordinator.fulfillRandomWords(requestId, [randomWord()])).wait();
       await (await manager.propagateRaffleWinner(2)).wait();
       const balanceBefore = await ethers.provider.getBalance(signers[0].address);
       const receipt = await (await manager.withdrawETH()).wait();
@@ -648,6 +654,8 @@ describe('CCIP Ticket Manager', () => {
   describe('Successful raffle flow (raffle time end)', () => {
     let start;
     let end;
+    let requestId;
+
     before(async () => {
       snapshot = await helpers.takeSnapshot();
     });
@@ -792,23 +800,27 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Admin could re-draw or cancel if VRF Request times out', async () => {
-      await expect(manager.shouldDrawRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
-      await expect(manager.shouldCancelRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+      await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
+      await expect(manager.drawWinner(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
+      await expect(manager.cancelRaffle(1)).to.be.revertedWithCustomError(manager, 'InvalidRaffle');
       await helpers.mine(201);
-      expect(await manager.shouldDrawRaffle(1)).to.eq(true);
-      expect(await manager.shouldCancelRaffle(1)).to.eq(true);
+      const drawWinnerSnapshot = await helpers.takeSnapshot();
+      await expect(manager.drawWinner(1)).to.not.be.reverted;
+      await drawWinnerSnapshot.restore();
+      const cancelRaffleSnapshot = await helpers.takeSnapshot();
+      await expect(manager.cancelRaffle(1)).to.not.be.reverted;
+      await cancelRaffleSnapshot.restore();
     });
 
     it('Public couldn\'t redraw if VRF Request times out', async () => {
       const randomGuy = await getWalletWithEthers();
       const contract = manager.connect(randomGuy);
-      await expect(contract.shouldDrawRaffle(1)).to.be.revertedWithCustomError(manager, 'MissingRole');
-      await expect(contract.shouldCancelRaffle(1)).to.be.revertedWithCustomError(manager, 'MissingRole');
+      await expect(contract.drawWinner(1)).to.be.revertedWithCustomError(manager, 'MissingRole');
+      await expect(contract.cancelRaffle(1)).to.be.revertedWithCustomError(manager, 'MissingRole');
     });
 
     it('Should be able to cancel if the raffle is not fullfilled within timeout window', async () => {
       const intermediarySnapshot = await helpers.takeSnapshot();
-      await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
       await (await manager.cancelRaffle(1)).wait();
       const raffle = await manager.getRaffle(1);
       expect(raffle.status).to.eq(RaffleStatus.CANCELED);
@@ -816,10 +828,9 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should be able to re-draw the winner if randomness is not fulfilled within timeout window', async () => {
-      expect(await manager.shouldDrawRaffle(1)).to.eq(true);
       const { events } = await (await manager.drawWinner(1)).wait();
       const requestSentEvent = events.find(e => e.event === 'RequestSent');
-      const { requestId } = requestSentEvent.args;
+      requestId = requestSentEvent.args.requestId;
       const { fulfilled, randomWord, raffleId } = await manager.getRequestStatus(requestId);
       await expect(manager.getWinner(1)).to.be.revertedWithCustomError(manager, 'RaffleNotFulfilled');
       expect(fulfilled).to.eq(false);
@@ -829,7 +840,14 @@ describe('CCIP Ticket Manager', () => {
 
     it('Fulfills randomness', async () => {
       await (await link.mint(manager.address, ethers.utils.parseEther('100'))).wait();
-      await (await coordinator.fulfillRandomWords(1, [randomWord()])).wait();
+      await (await coordinator.fulfillRandomWords(requestId, [randomWord()])).wait();
+    });
+
+    it('Should not be able to fulfill the randomness request a second time', async () => {
+      const { events } = await (await coordinator.fulfillRandomWords(requestId, [randomWord()])).wait();
+      const event = manager.interface.parseLog(events[0]);
+      expect(event.name).to.eq('InvalidVRFRequest');
+      expect(event.args[0]).to.eq(requestId);
     });
 
     it('Computes ticket numbers correclty', async () => {
@@ -843,7 +861,7 @@ describe('CCIP Ticket Manager', () => {
       let winner;
       let count = 0;
       for (const buyer of buyers) {
-        count += 100;
+        count += 25;
         winner = buyer;
         if (count > winningTicket) break;
       }
@@ -1087,10 +1105,13 @@ describe('CCIP Ticket Manager', () => {
     });
 
     it('Should not be able to fulfill randomness before requesting it', async () => {
-      const tx = whileImpersonating(coordinator.address, ethers.provider, async (signer) =>
+      const tx = await whileImpersonating(coordinator.address, ethers.provider, async (signer) =>
         manager.connect(signer).rawFulfillRandomWords(1, [randomWord()])
       );
-      await expect(tx).to.be.revertedWithCustomError(manager, 'RequestNotFound');
+      const { events } = await tx.wait();
+      const event = manager.interface.parseLog(events[0]);
+      expect(event.name).to.eq('InvalidVRFRequest');
+      expect(event.args[0]).to.eq(1);
     });
 
     it('Should not be able to request randomness with less than minimum confirmation', async () => {
