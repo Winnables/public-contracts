@@ -112,9 +112,9 @@ contract VRFCoordinatorV2_5BetterMock is VRF {
         if (!s_consumers[subId][msg.sender]) revert();
         if (req.requestConfirmations < minConfirmations) revert();
 
-        requestId = s_currentReqId;
+        requestId = uint256(keccak256(abi.encode(s_currentReqId)));
         s_requests[requestId] = msg.sender;
-        s_currentReqId = requestId + 1;
+        s_currentReqId += 1;
         s_requestSubs[requestId] = subId;
         emit RandomWordsRequested(
             req.keyHash,

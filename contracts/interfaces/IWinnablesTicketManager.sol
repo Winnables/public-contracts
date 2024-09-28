@@ -11,6 +11,7 @@ interface IWinnablesTicketManager is IWinnables {
     error MaxTicketExceed();
 
     event RafflePrizeLocked(bytes32 messageId, uint64 sourceChainSelector, uint256 raffleId);
+    event InvalidVRFRequest(uint256 requestId);
 
     enum CCIPMessageType {
         RAFFLE_CANCELED,
